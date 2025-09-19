@@ -10,7 +10,7 @@ from g4f.client import Client
 
 url_relaxBy = 'https://www.relax.by/cat/ent/restorans/'
 url_edaRu= 'https://eda.ru/recepty?page=2'
-url_fitauditRu= 'https://fitaudit.ru/food/abc'
+url= 'https://fitaudit.ru/food/abc'
 url_restoplaceCC = "https://restoplace.cc/blog/organizaciya-dostavki-edy"
 url_obsch = 'https://money.onliner.by/tag/obshhestvennyj-transport'
 url_taxi = 'https://auto.onliner.by/tag/taksi'
@@ -19,7 +19,7 @@ url_globalAutoBy = 'https://auto.onliner.by/world'
 url_AZS = 'https://officelife.media/article/41922-kak-podelen-rynok-azs-v-belarusi/'
 url_poezda = 'https://people.onliner.by/tag/poezda'
 url_avia = 'https://people.onliner.by/tag/aviaciya'
-url = 'https://auto.onliner.by/tag/kikshering'
+url_kikshering = 'https://auto.onliner.by/tag/kikshering'
 
 
 chrome_path = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
@@ -209,10 +209,11 @@ def parse_green(url):
             result.append(item)
 
     client = Client()
-    for i in range(362, len(result)):
+    for i in range(348, len(result)): #987
+        time.sleep(3)
         print(result[i])
         title = result[i][0]
-        question = f'напиши кратко что такое {title}'
+        question = f'напиши кратко что такое {title}, нужно описать как для сбора информации для датасета на тему рестораны и еда, не более 60 слов'
         response = client.chat.completions.create(
             model='gpt-4o-mini',
             messages=[{'role': 'user', 'content':f'{question}'}],
@@ -326,7 +327,7 @@ def pars_AZS(url):
 
 
 def main():
-    pars_onliner(url)
+    parse_green(url)
 
 if __name__ == '__main__':
     main()
