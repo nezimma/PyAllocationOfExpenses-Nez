@@ -14,8 +14,7 @@ def load_dataset():
     i = 1
     j = 1
     for index, row in df.iterrows():
-        junk_text = str(row['data'])
-        clear_text = junk_text
+        clear_text = str(row['data'])
         for u in stop_list:
             clear_text = clear_text.replace(u,'')
         print(clear_text)
@@ -28,7 +27,7 @@ def load_dataset():
                 f.write(clear_text)
             j+=1
 
-load_dataset()
+# load_dataset()
 
 batch_size = 32
 seed = 42
@@ -54,8 +53,8 @@ raw_test_ds = tf.keras.utils.text_dataset_from_directory(
     batch_size=batch_size
 )
 
-max_features = 10000
-sequence_length = 250
+max_features = 20688
+sequence_length = 200
 vectorize_layer = layers.TextVectorization(
     max_tokens=max_features,
     output_mode='int',
@@ -79,30 +78,40 @@ train_ds = raw_train_ds.map(vectorize_text)
 val_ds = raw_val_ds.map(vectorize_text)
 test_ds = raw_test_ds.map(vectorize_text)
 
-embedding_dim = 16
+embedding_dim = 64
 
 model = tf.keras.Sequential([
     layers.Embedding(max_features, embedding_dim),
-    layers.Dropout(0.2),
-    layers.GlobalAveragePooling1D(),
-    layers.Dropout(0.2),
+    layers.Conv1D(128,5, activation='relu'),
+    layers.BatchNormalization(),
+    layers.GlobalMaxPooling1D(),
+    layers.Dropout(0.5),
+    layers.Dense(64, activation='relu'),
+    layers.Dropout(0.5),
     layers.Dense(1, activation='sigmoid')
 ])
 
-model.summary()
 
-model.compile(loss=losses.BinaryCrossentropy(),
-              optimizer='adam',
-              metrics=[tf.metrics.BinaryAccuracy(threshold=0.5)])
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+    loss=losses.BinaryCrossentropy(),
+    metrics=[tf.keras.metrics.BinaryAccuracy(threshold=0.5),
+             tf.keras.metrics.Precision(),
+             tf.keras.metrics.Recall()])
 
-epochs = 20
+early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                  patience=3, restore_best_weights=True)
+
+epochs = 30
 history = model.fit(
     train_ds,
     validation_data=val_ds,
-    epochs=epochs
+    epochs=epochs,
+    callbacks=[early_stopping]
 )
-
-loss, accuracy = model.evaluate(test_ds)
+# print(len(model.evaluate(test_ds)))
+loss, accuracy, precision, recall  = model.evaluate(test_ds)
+model.summary()
 print('loss: ', loss)
 print('Accuracy: ', accuracy)
 
@@ -151,16 +160,25 @@ print(accuracy)
 
 examples = [
     "Сегодня съездил на заправку и потратил 40 рублей",
-    "Лимон  это цитрусовый фрукт принадлежащий к роду Citrus Он имеет желтую кожуру и кислый вкус что делает его популярным ингредиентом в кулинарии и напитках Лимон",
-    "проспал учебу, пришлось вызвать такси за 15 рублей"
+    "Сходил в ресторан, заказал суши ",
+    "Зашел после учебы купить чебурек",
+    "Сходил на неделю затариться продуктами",
+    "Проспал учебу, пришлось вызвать такси за 15 рублей"
 ]
 
+def accuracy_text(text):
+    input_texts = tf.constant([text])
+    predictions = export_model.predict(input_texts)
+    print(predictions)
+    if predictions<=0.5:
+        return 'Покупка записана в Рестораны и еда'
+    else:
+        return 'Покупка записана в Транспорт'
+
+
+
 byte_examples = [s.encode('utf-8') for s in examples]
-
 input_texts = tf.constant(byte_examples, dtype=tf.string)
-
-predictions = export_model.predict(input_texts)
-print(predictions)
 vectorized_texts = vectorize_layer(input_texts)
 predictions_m = model.predict(vectorized_texts)
 print(predictions_m)

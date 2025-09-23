@@ -12,6 +12,7 @@ from aiogram.types import FSInputFile, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 
 import Data_base
+import Learning_model
 import Speech_Recognition
 
 API = '8231618759:AAFQiJ2pUf6ds8Gx4Ze41vVaiUjJoOAMTlU'
@@ -28,6 +29,9 @@ class BotState(StatesGroup):
     willsell_state = State()
     callback_state = State()
     aim_state = State()
+
+
+
 
 @dp.message(Command("start"))
 async def login_user(message: types.Message):
@@ -96,12 +100,13 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
 
         speech_processor = Speech_Recognition.Speech_voice()
         recognized_text = speech_processor.convertation(wav_path)
+        print(f"Результат распознавания: {recognized_text}")
 
         if recognized_text in ["Не удалось распознать речь", "Ошибка сервиса распознавания речи"]:
             await message.answer(f"❌ {recognized_text}")
             return
 
-        await message.answer(f"🎤 Распознано: {recognized_text}")
+        await message.answer(f"🎤 {Learning_model.accuracy_text(recognized_text)}")
 
         await state.update_data(recognized_text=recognized_text)
 

@@ -10,7 +10,7 @@ from g4f.client import Client
 
 url_relaxBy = 'https://www.relax.by/cat/ent/restorans/'
 url_edaRu= 'https://eda.ru/recepty?page=2'
-url= 'https://fitaudit.ru/food/abc'
+url_poduct= 'https://fitaudit.ru/food/abc'
 url_restoplaceCC = "https://restoplace.cc/blog/organizaciya-dostavki-edy"
 url_obsch = 'https://money.onliner.by/tag/obshhestvennyj-transport'
 url_taxi = 'https://auto.onliner.by/tag/taksi'
@@ -20,6 +20,7 @@ url_AZS = 'https://officelife.media/article/41922-kak-podelen-rynok-azs-v-belaru
 url_poezda = 'https://people.onliner.by/tag/poezda'
 url_avia = 'https://people.onliner.by/tag/aviaciya'
 url_kikshering = 'https://auto.onliner.by/tag/kikshering'
+# url = 'https://www.spr.by/otzyvy/'
 
 
 chrome_path = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
@@ -326,8 +327,105 @@ def pars_AZS(url):
             df_new.to_csv('DatasetK.csv', mode='a', header=False, index=True, sep='|', encoding='utf-8')
 
 
+
+mass = ['Отзывы о продуктовых магазинах','Отзывы о ресторанах','Отзывы о службах доставки еды ','Отзывы о мясокомбинатах']
+
+def pars_review(url):
+    try:
+        driver = webdriver.Chrome()
+        driver.get(url)
+        time.sleep(5)
+        driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
+        print('.')
+        for i in mass:
+            superM = driver.find_element(By.XPATH, f'//a[@title="{i}"]')
+            superM.click()
+            time.sleep(1)
+            organization = driver.find_elements(By.XPATH, '//div[@class="itemFlexInfo"]')
+            main_window = driver.current_window_handle
+            for j in organization:
+                j.click()
+                time.sleep(1)
+                all_windows = driver.window_handles
+                for window in all_windows:
+                    if window != main_window:
+                        driver.switch_to.window(window)
+                        break
+                rew = driver.find_element(By.XPATH, '//nav[@class="middleMenuDefault"]')
+                li_arg = rew.find_elements(By.TAG_NAME, 'li')
+                li_arg[1].click()
+                time.sleep(1)
+                driver.fullscreen_window()
+                driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
+                hh = driver.find_element(By.XPATH, '//a[@class="btnLoad"]')
+                print(hh)
+                time.sleep(3)
+                hh.click()
+
+                for u in range(10):
+                    driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(2)
+                block_text = driver.find_elements(By.XPATH, '//div[@class="review reviewPositive"]')
+                block_text1 = driver.find_elements(By.XPATH, '//div[@class="review reviewNegative"]')
+                block_text = block_text+block_text1
+                for y in block_text:
+                    title = y.find_element(By.XPATH, '//div[@class="reviewTitleText"]').text
+                    # try:
+                    #     element = driver.find_element(By.XPATH, "//a[@data-readmore and contains(@class, 'linkFullText') and contains(@class, 'readMoreReview') and text()='читать  полностью']")
+                    #     element.click()
+                    #     time.sleep(2)
+                    #     text = driver.find_element(By.CLASS_NAME, 'popupReviewsText')
+                    #     close = driver.find_element(By.CLASS_NAME, 'popupContainerClose')
+                    #     time.sleep(3)
+                    #     close.click()
+                    # except Exception as e:
+                    text = y.find_element(By.CLASS_NAME, 'reviewText').text.replace('читать полностью','')
+                    point = text.count('.')
+                    main_url = driver.current_url
+                    if point >3:
+                        # тут написать код записи
+                        new_data = {
+                            'url': driver.current_url,
+                            'title': title,
+                            'category': 'Ресторан и еда',
+                            'data': text
+                        }
+
+                        df_new = pd.DataFrame([new_data])
+                        df_new.to_csv('DatasetK.csv', mode='a', header=False, index=True, sep='|', encoding='utf-8')
+                        print(main_url,'|',title,'|','Рестораны и еда|',text)
+                driver.close()
+                driver.switch_to.window(main_window)
+            driver.back()
+    except Exception as e:
+        print(e)
+        time.sleep(100)
+
+
+
+url = 'https://exporteru.com/'
+
+def test(url):
+    driver = webdriver.Chrome()
+    driver.get(url)
+    driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
+    tovary = driver.find_elements(by=By.CLASS_NAME, value='card_card__box__62c8Q ')
+    try:
+        while True:
+            for i in range(5):
+                time.sleep(0.3)
+                tovary = driver.find_elements(by=By.CLASS_NAME, value='card_card__box__62c8Q ')
+                tovary[i].click()
+                time.sleep(0.3)
+                driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
+                driver.back()
+    except:
+        time.sleep(100)
+
+
+
 def main():
-    parse_green(url)
+    test(url)
 
 if __name__ == '__main__':
     main()
