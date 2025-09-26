@@ -20,7 +20,7 @@ url_AZS = 'https://officelife.media/article/41922-kak-podelen-rynok-azs-v-belaru
 url_poezda = 'https://people.onliner.by/tag/poezda'
 url_avia = 'https://people.onliner.by/tag/aviaciya'
 url_kikshering = 'https://auto.onliner.by/tag/kikshering'
-# url = 'https://www.spr.by/otzyvy/'
+url = 'https://www.spr.by/otzyvy/'
 
 
 chrome_path = r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
@@ -328,7 +328,7 @@ def pars_AZS(url):
 
 
 
-mass = ['Отзывы о продуктовых магазинах','Отзывы о ресторанах','Отзывы о службах доставки еды ','Отзывы о мясокомбинатах']
+mass = ['']
 
 def pars_review(url):
     try:
@@ -403,29 +403,8 @@ def pars_review(url):
 
 
 
-url = 'https://exporteru.com/'
-
-def test(url):
-    driver = webdriver.Chrome()
-    driver.get(url)
-    driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
-    tovary = driver.find_elements(by=By.CLASS_NAME, value='card_card__box__62c8Q ')
-    try:
-        while True:
-            for i in range(5):
-                time.sleep(0.3)
-                tovary = driver.find_elements(by=By.CLASS_NAME, value='card_card__box__62c8Q ')
-                tovary[i].click()
-                time.sleep(0.3)
-                driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight);")
-                driver.back()
-    except:
-        time.sleep(100)
-
-
-
 def main():
-    test(url)
+    pars_review(url)
 
 if __name__ == '__main__':
     main()

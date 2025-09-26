@@ -1,3 +1,5 @@
+# ТУТ НАХОДИТСЯ ПРЕОБРАХОВАНИЕ ТЕКСТА В ОБЛАКО СЛОВ ДЛЯ КРАСОТЫ
+
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import json
@@ -27,13 +29,6 @@ import os
 # full_text = ' '.join(str(t) for t in texts_flat)
 #
 # # Массив русских стоп слов
-
-
-
-
-
-
-
 #
 # russian_stopwords = {
 #     "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а",
@@ -57,9 +52,7 @@ import os
 # }
 # # # Разбить full_text на слова и удалить стоп-слова
 #
-# #
-# #
-# #
+
 # # mask = np.array(Image.open('heard.png'))
 # #
 # # wordcloud = WordCloud(
@@ -78,67 +71,78 @@ import os
 # # plt.show()
 #
 #
-# import os
-#
-# def read_all_txt_files(directory):
-#     all_text = ""
-#     for filename in os.listdir(directory):
-#         if filename.endswith(".txt"):
-#             filepath = os.path.join(directory, filename)
-#             with open(filepath, 'r', encoding='utf-8') as file:
-#                 all_text += file.read() + "\n"
-#     return all_text
-#
-# # Пример использования:
-# directory_path = "train_dir/Restaurans_food"
-# full_text = read_all_txt_files(directory_path).replace('\n', ' ')
-#
-# # filtered_words = [word for word in full_text.split() if not any(stop_word in word.lower() for stop_word in russian_stopwords)]
-# filtered_words = [word for word in full_text.split() if word.lower() not in russian_stopwords]
-# filtered_text = ' '.join(filtered_words)
-# print(len(filtered_text))  # Вся текстовая информация из всех txt файлов
-#
-# wordcloud = WordCloud(
-#     scale=3,
-#     width=2000,
-#     height=1000,
-#     background_color='black',
-#     collocations=False,
-#     colormap='Set3'
-# ).generate(filtered_text)
-#
-# plt.figure(figsize=(20, 10))
-# plt.imshow(wordcloud, interpolation='bilinear')
-# plt.axis('off')
-# plt.show()
 
 
-import tensorflow as tf
-from tensorboard.plugins import projector
+
+
+
 import os
 
-log_dir = 'logs/test-projector'
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+def read_all_txt_files(directory):
+    all_text = ""
+    for filename in os.listdir(directory):
+        if filename.endswith(".txt"):
+            filepath = os.path.join(directory, filename)
+            with open(filepath, 'r', encoding='utf-8') as file:
+                all_text += file.read() + "\n"
+    return all_text
 
-# Примерные данные
-words = ['apple', 'banana', 'carrot']
-vectors = tf.Variable([[1.0, 0.5], [0.9, 0.6], [0.2, 0.8]], name='embedding_weights')
+# Пример использования:
+directory_path = "train_dir/Transport"
+full_text = read_all_txt_files(directory_path).replace('\n', ' ')
 
-# Сохраняем metadata
-with open(os.path.join(log_dir, 'metadata.tsv'), 'w', encoding='utf-8') as f:
-    for word in words:
-        f.write(f"{word}\n")
+russian_stopwords = []
 
-# Сохраняем чекпоинт
-checkpoint = tf.train.Checkpoint(embedding=vectors)
-checkpoint.save(os.path.join(log_dir, 'embedding.ckpt'))
+# filtered_words = [word for word in full_text.split() if not any(stop_word in word.lower() for stop_word in russian_stopwords)]
+filtered_words = [word for word in full_text.split() if word.lower() not in russian_stopwords]
+filtered_text = ' '.join(filtered_words)
+print(len(filtered_text))  # Вся текстовая информация из всех txt файлов
 
-# Настройка TensorBoard
-config = projector.ProjectorConfig()
-embedding = config.embeddings.add()
-embedding.tensor_name = vectors.name
-embedding.metadata_path = 'metadata.tsv'
-projector.visualize_embeddings(log_dir, config)
+wordcloud = WordCloud(
+    scale=3,
+    width=2000,
+    height=1000,
+    background_color='black',
+    collocations=False,
+    colormap='Set3'
+).generate(filtered_text)
+
+plt.figure(figsize=(20, 10))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.show()
+
+
+
+
+
+
+# import tensorflow as tf
+# from tensorboard.plugins import projector
+# import os
+#
+# log_dir = 'logs/test-projector'
+# if not os.path.exists(log_dir):
+#     os.makedirs(log_dir)
+#
+# # Примерные данные
+# words = ['apple', 'banana', 'carrot']
+# vectors = tf.Variable([[1.0, 0.5], [0.9, 0.6], [0.2, 0.8]], name='embedding_weights')
+#
+# # Сохраняем metadata
+# with open(os.path.join(log_dir, 'metadata.tsv'), 'w', encoding='utf-8') as f:
+#     for word in words:
+#         f.write(f"{word}\n")
+#
+# # Сохраняем чекпоинт
+# checkpoint = tf.train.Checkpoint(embedding=vectors)
+# checkpoint.save(os.path.join(log_dir, 'embedding.ckpt'))
+#
+# # Настройка TensorBoard
+# config = projector.ProjectorConfig()
+# embedding = config.embeddings.add()
+# embedding.tensor_name = vectors.name
+# embedding.metadata_path = 'metadata.tsv'
+# projector.visualize_embeddings(log_dir, config)
 
 

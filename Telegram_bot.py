@@ -1,9 +1,5 @@
 import os
 import tempfile
-
-from pydub import AudioSegment
-import aiogram
-import subprocess
 import asyncio
 from aiogram import Dispatcher, Bot, types, F
 from aiogram.fsm.state import StatesGroup, State
@@ -16,13 +12,9 @@ import Learning_model
 import Speech_Recognition
 
 API = '8231618759:AAFQiJ2pUf6ds8Gx4Ze41vVaiUjJoOAMTlU'
-host = "localhost"
-user = "postgres"
-password = "12345"
-db_name = "postgres"
 bot = Bot(token=API)
 dp = Dispatcher()
-db = Data_base.Postgresql(host, user, password, db_name)
+
 
 class BotState(StatesGroup):
     sell_state = State()
@@ -54,7 +46,7 @@ async def input_panel(message:types.Message):
         await message.answer("Регистрация прошла успешно", reply_markup=keyboard)
         phone = str(message.contact.phone_number)
         user_id = int(message.from_user.id)
-        db.loggin(login=user_id, phone_num=phone)
+        Data_base.Postgresql.loggin(login=user_id, phone_num=phone)
 
 @dp.message(F.text.lower() == "расходы")
 async def get_voice(message: types.Message, state:FSMContext):
@@ -73,33 +65,8 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
 
         await bot.download_file(file_path, destination=ogg_path)
 
-        ffmpeg_cmd = [
-            'ffmpeg', '-i', ogg_path,
-            '-acodec', 'pcm_s16le',
-            '-ar', '16000',
-            '-ac', '1',
-            '-y',
-            wav_path
-        ]
-
-        result = subprocess.run(
-            ffmpeg_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=30
-        )
-
-        if result.returncode != 0:
-            print(f"FFmpeg error: {result.stderr.decode()}")
-            await message.answer("❌ Ошибка обработки аудио")
-            return
-
-        if not os.path.exists(wav_path):
-            await message.answer("❌ Файл не был создан")
-            return
-
         speech_processor = Speech_Recognition.Speech_voice()
-        recognized_text = speech_processor.convertation(wav_path)
+        recognized_text = speech_processor.convertation(ogg_path, wav_path)
         print(f"Результат распознавания: {recognized_text}")
 
         if recognized_text in ["Не удалось распознать речь", "Ошибка сервиса распознавания речи"]:
@@ -110,8 +77,6 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
 
         await state.update_data(recognized_text=recognized_text)
 
-    except subprocess.TimeoutExpired:
-        await message.answer("❌ Таймаут обработки аудио")
     except Exception as e:
         print(f"Error in voice processing: {e}")
         await message.answer("❌ Произошла ошибка при обработке голосового сообщения")
