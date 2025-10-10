@@ -34,7 +34,7 @@ class Speech_voice:
 
 
         recognizer = sr.Recognizer()
-        with sr.AudioFile(audio_path) as source:
+        with sr.AudioFile(wav_path) as source:
             recognizer.adjust_for_ambient_noise(source, duration=0.5)
             audio_data = recognizer.record(source)
         try:

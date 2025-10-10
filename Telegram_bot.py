@@ -14,13 +14,17 @@ import Speech_Recognition
 API = '8231618759:AAFQiJ2pUf6ds8Gx4Ze41vVaiUjJoOAMTlU'
 bot = Bot(token=API)
 dp = Dispatcher()
-
+host = "localhost"
+user = "postgres"
+password_service = "12345"
+db_name = "allocationofexpenses"
 
 class BotState(StatesGroup):
     sell_state = State()
     willsell_state = State()
     callback_state = State()
     aim_state = State()
+    waiting_for_password = State()
 
 
 
@@ -35,23 +39,43 @@ async def login_user(message: types.Message):
     await message.answer("добропожаловаться", reply_markup=keyboard)
 
 @dp.message(F.contact)
-async def input_panel(message:types.Message):
+async def input_panel(message:types.Message, state: FSMContext):
     if message.contact is not None:
-        kb = [[types.KeyboardButton(text="Расходы"),
-                types.KeyboardButton(text="Напоминания")]]
-        keyboard = types.ReplyKeyboardMarkup(
-            keyboard=kb,
-            resize_keyboard=True
+        # Спрашиваем пароль и переводим в состояние ожидания
+        await message.answer('Придумайте пароль:')
+        await state.set_state(BotState.waiting_for_password)
+        # Сохраняем данные контакта в state для дальнейшего доступа
+        await state.update_data(
+            phone=str(message.contact.phone_number),
+            user_id=int(message.from_user.id)
         )
-        await message.answer("Регистрация прошла успешно", reply_markup=keyboard)
-        phone = str(message.contact.phone_number)
-        user_id = int(message.from_user.id)
-        Data_base.Postgresql.loggin(login=user_id, phone_num=phone)
+
+@dp.message(BotState.waiting_for_password)
+async def process_message(message: types.Message, state:FSMContext):
+    password = message.text
+    data = await state.get_data()  # достаем сохранённые ранее данные
+    phone = data.get('phone')
+    user_id = data.get('user_id')
+
+    await message.answer(f'Был записан пароль: {password}')
+
+    # Создаём объект подключения к базе
+    db = Data_base.Postgresql(host, user, password_service, db_name)
+    db.loggin(unical_code=user_id, login=phone, password=password)
+
+    # Используем клавиатуру и отправляем сообщение
+    kb = [[types.KeyboardButton(text="Расходы"),
+           types.KeyboardButton(text="Напоминания")]]
+    keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+    await message.answer("Регистрация прошла успешно", reply_markup=keyboard)
+    await state.clear()
 
 @dp.message(F.text.lower() == "расходы")
 async def get_voice(message: types.Message, state:FSMContext):
     await message.answer("Отправляйте голосовые сообщения для записей своих расходов")
     await state.set_state(BotState.sell_state)
+
+
 
 @dp.message(BotState.sell_state, F.voice)
 async def state_processing_voice(message: types.Message, state:FSMContext):

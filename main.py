@@ -8,49 +8,30 @@ from PIL import Image
 from wordcloud.color_from_image import ImageColorGenerator
 import os
 
-# def load_json(filename):
-#     with open(filename, 'r', encoding='utf-8') as file:
-#         return json.load(file)
-#
-# message = load_json('result.json')
-#
-# texts = [msg['text'] for msg in message['messages'] if 'text' in msg]
-#
-# def flatten_texts(texts):
-#     flattened = []
-#     for item in texts:
-#         if isinstance(item, list):
-#             flattened.extend(item)
-#         else:
-#             flattened.append(item)
-#     return flattened
-#
-# texts_flat = flatten_texts(texts)
-# full_text = ' '.join(str(t) for t in texts_flat)
-#
+
 # # Массив русских стоп слов
 #
-# russian_stopwords = {
-#     "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а",
-#     "то", "все", "она", "так", "его", "но", "да", "ты", "к", "у", "же",
-#     "вы", "за", "бы", "по", "только", "ее", "мне", "было", "вот", "от",
-#     "меня", "еще", "нет", "о", "из", "ему", "теперь", "когда", "даже",
-#     "ну", "вдруг", "ли", "если", "уже", "или", "ни", "быть", "был", "него",
-#     "до", "вас", "нибудь", "опять", "уж", "вам", "ведь", "там", "потом",
-#     "себя", "ничего", "ей", "может", "они", "тут", "где", "есть", "надо",
-#     "ней", "для", "мы", "тебя", "их", "чем", "была", "сам", "чтоб", "без",
-#     "будто", "чего", "раз", "тоже", "себе", "под", "будет", "ж", "тогда",
-#     "кто", "этот", "того", "потому", "этого", "какой", "совсем", "ним",
-#     "здесь", "этом", "один", "почти", "мой", "тем", "чтобы", "нее", "сейчас",
-#     "были", "куда", "зачем", "всех", "никогда", "можно", "при", "наконец",
-#     "два", "об", "другой", "хоть", "после", "над", "больше", "тот", "через",
-#     "эти", "нас", "про", "всего", "них", "какая", "много", "разве", "три",
-#     "эту", "моя", "впрочем", "хорошо", "свою", "этой", "перед", "иногда",
-#     "лучше", "чуть", "том", "нельзя", "такой", "им", "более", "всегда",
-#     "конечно", "всю", "между", "это","ладно","просто", "ещё", "https", "type","link",
-#     "text","tgs","bold","document_id", "sticker","custom_emoji","animatedsticker","webm","mention","webp","video_files","href", "","", "█"
-# }
-# # # Разбить full_text на слова и удалить стоп-слова
+russian_stopwords = {
+    "и", "в", "во", "не", "что", "он", "на", "я", "с", "со", "как", "а",
+    "то", "все", "она", "так", "его", "но", "да", "ты", "к", "у", "же",
+    "вы", "за", "бы", "по", "только", "ее", "мне", "было", "вот", "от",
+    "меня", "еще", "нет", "о", "из", "ему", "теперь", "когда", "даже",
+    "ну", "вдруг", "ли", "если", "уже", "или", "ни", "быть", "был", "него",
+    "до", "вас", "нибудь", "опять", "уж", "вам", "ведь", "там", "потом",
+    "себя", "ничего", "ей", "может", "они", "тут", "где", "есть", "надо",
+    "ней", "для", "мы", "тебя", "их", "чем", "была", "сам", "чтоб", "без",
+    "будто", "чего", "раз", "тоже", "себе", "под", "будет", "ж", "тогда",
+    "кто", "этот", "того", "потому", "этого", "какой", "совсем", "ним",
+    "здесь", "этом", "один", "почти", "мой", "тем", "чтобы", "нее", "сейчас",
+    "были", "куда", "зачем", "всех", "никогда", "можно", "при", "наконец",
+    "два", "об", "другой", "хоть", "после", "над", "больше", "тот", "через",
+    "эти", "нас", "про", "всего", "них", "какая", "много", "разве", "три",
+    "эту", "моя", "впрочем", "хорошо", "свою", "этой", "перед", "иногда",
+    "лучше", "чуть", "том", "нельзя", "такой", "им", "более", "всегда",
+    "конечно", "всю", "между", "это","ладно","просто", "ещё", "https", "type","link",
+    "text","tgs","bold","document_id", "sticker","custom_emoji","animatedsticker","webm","mention","webp","video_files","href", "","", "█"
+}
+
 #
 
 # # mask = np.array(Image.open('heard.png'))
@@ -72,47 +53,71 @@ import os
 #
 #
 
+def delete_stop_words(base_dir):
+    import os
 
+    # Путь к основной директории с папками и файлами
+    base_dir = base_dir
 
+    def remove_stop_words(text, stop_words):
+        words = text.split()
+        filtered_words = [word for word in words if word.lower() not in stop_words]
+        return ' '.join(filtered_words)
+
+    for root, dirs, files in os.walk(base_dir):
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            with open(file_path, 'r', encoding='utf-8') as file:
+                text = file.read()
+
+            cleaned_text = remove_stop_words(text, russian_stopwords)
+
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(cleaned_text)
+
+    print("Обработка завершена.")
+
+if input("Введи y для очистки папок от стоп слов") == "y":
+    delete_stop_words(input("Введи директорию"))
 
 
 import os
+def word_cloude_tf(directory_path):
+    def read_all_txt_files(directory):
+        all_text = ""
+        for filename in os.listdir(directory):
+            if filename.endswith(".txt"):
+                filepath = os.path.join(directory, filename)
+                with open(filepath, 'r', encoding='utf-8') as file:
+                    all_text += file.read() + "\n"
+        return all_text
 
-def read_all_txt_files(directory):
-    all_text = ""
-    for filename in os.listdir(directory):
-        if filename.endswith(".txt"):
-            filepath = os.path.join(directory, filename)
-            with open(filepath, 'r', encoding='utf-8') as file:
-                all_text += file.read() + "\n"
-    return all_text
+    # Пример использования:
+    full_text = read_all_txt_files(directory_path).replace('\n', ' ')
 
-# Пример использования:
-directory_path = "train_dir/Transport"
-full_text = read_all_txt_files(directory_path).replace('\n', ' ')
+    russian_stopwords = []
 
-russian_stopwords = []
+    # filtered_words = [word for word in full_text.split() if not any(stop_word in word.lower() for stop_word in russian_stopwords)]
+    filtered_words = [word for word in full_text.split() if word.lower() not in russian_stopwords]
+    filtered_text = ' '.join(filtered_words)
+    print(len(filtered_text))  # Вся текстовая информация из всех txt файлов
 
-# filtered_words = [word for word in full_text.split() if not any(stop_word in word.lower() for stop_word in russian_stopwords)]
-filtered_words = [word for word in full_text.split() if word.lower() not in russian_stopwords]
-filtered_text = ' '.join(filtered_words)
-print(len(filtered_text))  # Вся текстовая информация из всех txt файлов
+    wordcloud = WordCloud(
+        scale=3,
+        width=2000,
+        height=1000,
+        background_color='black',
+        collocations=False,
+        colormap='Set3'
+    ).generate(filtered_text)
 
-wordcloud = WordCloud(
-    scale=3,
-    width=2000,
-    height=1000,
-    background_color='black',
-    collocations=False,
-    colormap='Set3'
-).generate(filtered_text)
+    plt.figure(figsize=(20, 10))
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis('off')
+    plt.show()
 
-plt.figure(figsize=(20, 10))
-plt.imshow(wordcloud, interpolation='bilinear')
-plt.axis('off')
-plt.show()
-
-
+if input('введи y для облака слов') == "y":
+    word_cloude_tf(input("Введи директорию в которой хочешь проверить облако"))
 
 
 

@@ -16,13 +16,14 @@ class Postgresql:
         )
         self.cur = self.connection.cursor()
 
-    def loggin(self, login, phone_num):
+
+    def loggin(self,unical_code, login, password):
         #тут написать проверку
-        self.cur.execute('select login from logginer where login=%s',(login,))
+        self.cur.execute('select login from user_tg where login=%s',(login,))
         result = self.cur.fetchall()
         if result == []:
-            if isinstance(login, int) and phone_num[0] == "+":
-                self.cur.execute('insert into logginer (login, phone) values (%s,%s)', (login, phone_num[1:13]))
+            if isinstance(unical_code, int) and login[0] == "+":
+                self.cur.execute('insert into user_tg (unical_code, login, password) values (%s,%s,%s)', (unical_code, login[1:13], password))
                 self.connection.commit()
     def close(self):
         self.cur.close()
