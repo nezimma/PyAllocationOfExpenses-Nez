@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 from wordcloud.color_from_image import ImageColorGenerator
 import os
+from datetime import date, datetime
 
 
 # # Массив русских стоп слов
@@ -217,9 +218,14 @@ russian_stopwords = {
 # print(f"Logs saved to: {projector_log_dir}")
 # print(f"TensorBoard fit logs: {fit_log_dir}")
 
-text_date = {"date": "неделя"}
+# text_date = {"date": "неделя"}
+#
+# interval = {"неделя":7,
+#             "день":1}
+#
+# print(interval[text_date['date']])
+date_str = '2025-10-28'
+dt = datetime.strptime(date_str, '%Y-%m-%d').date()  # преобразование строки в date
 
-interval = {"неделя":7,
-            "день":1}
-
-print(interval[text_date['date']])
+delta = date.today() - dt
+print(delta.days)

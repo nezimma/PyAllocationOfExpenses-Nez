@@ -7,6 +7,7 @@ from aiogram.filters.command import Command
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
 from Data_base import db
+from datetime import date, datetime
 import re
 # import Learning_model
 import Speech_Recognition
@@ -30,7 +31,7 @@ class BotState(StatesGroup):
     callback_time_state = State()
     callback_date_state = State()
     waiting_for_password = State()
-
+    wait_habit_frequency = State()
 
 
 
@@ -56,7 +57,6 @@ async def input_panel(message:types.Message, state: FSMContext):
         await state.update_data(
             phone=str(message.contact.phone_number),
             user_id=int(message.from_user.id)
-
         )
 
 @dp.message(BotState.waiting_for_password)
@@ -131,10 +131,16 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
 async def start_callback(message: types.Message):
     kb = [[types.KeyboardButton(text="Создать напоминание")],
           [types.KeyboardButton(text="Управлять напоминаниями")],
-          [types.KeyboardButton(text="Назад")]]
+          [types.KeyboardButton(text="На главное меню")]]
     keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
     await message.answer("Создавайте Напоминания, создавайте привычки и задавайте Цели", reply_markup=keyboard)
 
+@dp.message(F.text.lower() == "на главное меню")
+async def back_main_menu(message: types.Message):
+    kb = [[types.KeyboardButton(text="Расходы"),
+           types.KeyboardButton(text="Напоминания")]]
+    keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+    await message.answer("Вы вернулись на главное меню", reply_markup=keyboard)
 
 @dp.message(F.text.lower() == "создать напоминание")
 async def craft_callback(message: types.Message, state:FSMContext):
@@ -144,42 +150,84 @@ async def craft_callback(message: types.Message, state:FSMContext):
 @dp.message(BotState.callback_text_state)
 async def text_callback(message: types.Message, state: FSMContext):
     text = message.text
-    await state.update_data(text=str(text))
-    await message.answer("введите дату или интервал")
-    await state.set_state(BotState.callback_date_state)
+    if text in ['Управлять напоминаниями', 'На главное меню', 'Создать напоминание']:
+        await manege_callback(message)
+    else:
+        await state.update_data(text=str(text))
+        await message.answer("введите дату или интервал")
+        await state.set_state(BotState.callback_date_state)
 
 @dp.message(BotState.callback_date_state)
 async def date_callback(message:types.Message, state: FSMContext):
     date = message.text
-    await state.update_data(date=str(date))
-    await message.answer("Введите время")
-    await state.set_state(BotState.callback_time_state)
+    if date in ['Управлять напоминаниями', 'На главное меню', 'Создать напоминание']:
+        await manege_callback(message)
+    else:
+        await state.update_data(date=str(date))
+        await message.answer("Введите время")
+        await state.set_state(BotState.callback_time_state)
 
 @dp.message(BotState.callback_time_state)
 async def time_callback(message: types.Message, state: FSMContext):
     time = message.text
-    text_date = await state.get_data()
-    db.reccurent_templates(time+' '+text_date['date'], interval[text_date['date']], time)
-    user_id = message.from_user.id
-    db.reminder(time+' '+text_date['date'], text_date["text"], user_id)
-    await message.answer("Запись выполнена успешно")
-    await state.clear()
+    if time in ['Управлять напоминаниями', 'На главное меню', 'Создать напоминание']:
+        await manege_callback(message)
+    else:
+        text_date = await state.get_data()
+        db.reccurent_templates(time+' '+text_date['date'], interval[text_date['date'].lower()], time)
+        user_id = message.from_user.id
+        db.reminder(time+' '+text_date['date'], text_date["text"], user_id)
+        await message.answer("Запись выполнена успешно")
+        await state.clear()
 
 @dp.message(F.text.lower() == 'управлять напоминаниями')
 async def manege_callback(message: types.Message):
     mass = []
     inverse_interval = {v: k for k, v in interval.items()}
     user_id = message.from_user.id
+    print(user_id)
     rows = db.call_reminder(user_id)
+    print(rows)
     for row in rows:
         for i in range(len(row)):
             mass.append(row[i])
-        inline_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text='Привычка', callback_data=f"habit_{mass[5]}"),
-                    InlineKeyboardButton(text='Цель', callback_data=f'aim_{mass[5]}')]])
-        await message.answer(f'Напоминание "{mass[0].capitalize()}"\n'
-                             f'Интервал повторения "{inverse_interval[mass[3]].capitalize()}"\n'
-                             f'Время вызова "{mass[4]}"', reply_markup=inline_kb)
+        if mass[6] != None:
+            delta = date.today() - mass[7]
+            activiti = 'Активно' if mass[8] else 'Не активно'
+            await message.answer(f'Привычка "{mass[0].capitalize()}"\n'
+                                 f'Интевал повторения "{mass[6]}"\n'
+                                 f'Следующее напоминание через "{delta.days % int(mass[6])} дней в {mass[4]}"\n'
+                                 f'Активность "{activiti}"')
+        else:
+            inline_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(text='Привычка', callback_data=f"habit_{mass[5]}"),
+                        InlineKeyboardButton(text='Цель', callback_data=f'aim_{mass[5]}')],
+                        [InlineKeyboardButton(text='Удалить', callback_data=f'delete_{mass[5]}')]])
+            await message.answer(f'Напоминание "{mass[0].capitalize()}"\n'
+                                 f'Дата напоминания "{inverse_interval[mass[3]].capitalize()}"\n'
+                                 f'Время вызова "{mass[4]}"', reply_markup=inline_kb)
+        mass.clear()
+
+@dp.callback_query(lambda c: c.data.startswith('delete'))
+async def delete_reminder(cb: types.CallbackQuery):
+    await cb.message.delete()
+    db.delete_reminder(cb.data.split('_')[1])
+
+@dp.callback_query(lambda c: c.data.startswith('habit'))
+async def create_habit(cb: types.CallbackQuery, state: FSMContext):
+    await cb.message.answer("Для создания привычки введите интервал через который будет отправлено вам напоминание")
+    await state.set_state(BotState.wait_habit_frequency)
+    await state.update_data(number_reminder= cb.data.split('_')[1])
+
+@dp.message(BotState.wait_habit_frequency)
+async def get_frequency(message: types.Message, state: FSMContext):
+    frequency = message.text
+    remind_id = await state.get_data()
+    remind_id = remind_id.get('number_reminder')
+    db.create_habit(frequency, remind_id)
+    await state.clear()
+
+
 
 
 

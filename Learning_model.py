@@ -104,86 +104,86 @@ early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                   patience=3, restore_best_weights=True)
 
 epochs = 30
-if __name__ == "__main__":
-    history = model.fit(
-        train_ds,
-        validation_data=val_ds,
-        epochs=epochs,
-        callbacks=[early_stopping]
-    )
-    # print(len(model.evaluate(test_ds)))
-    loss, accuracy, precision, recall  = model.evaluate(test_ds)
-    model.summary()
-    print('loss: ', loss)
-    print('Accuracy: ', accuracy)
+# if __name__ == "__main__":
+history = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=epochs,
+    callbacks=[early_stopping]
+)
+# print(len(model.evaluate(test_ds)))
+loss, accuracy, precision, recall  = model.evaluate(test_ds)
+model.summary()
+print('loss: ', loss)
+print('Accuracy: ', accuracy)
 
-    history_dict = history
-    history_dict.keys()
+history_dict = history
 
-    acc = history_dict['binary_accuracy']
-    val_acc = history_dict['val_binary_accuracy']
-    loss = history_dict['loss']
-    val_loss = history_dict['val_loss']
-
-    epochs_plt = range(1, len(acc)+1)
-
-    plt.plot(epochs_plt, loss, 'bo', label='Training loss')
-    plt.plot(epochs_plt, val_loss, 'b', label='Validation loss')
-    plt.title('Training and validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-
-    plt.show()
-
-    plt.plot(epochs_plt, acc, 'bo', label='Training acc')
-    plt.plot(epochs_plt, val_acc, 'b', label='Validation acc')
-    plt.title('Training and validation accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.legend(loc='lower right')
-
-    plt.show()
-
-    export_model = tf.keras.Sequential([
-        vectorize_layer,
-        model
-    ])
-
-    export_model.compile(
-        loss=losses.BinaryCrossentropy(from_logits=False),
-        optimizer='adam',
-        metrics=['accuracy']
-    )
-
-    loss, accuracy = export_model.evaluate(raw_test_ds)
-    print(accuracy)
+acc = history.history['binary_accuracy']
+val_acc = history.history['val_binary_accuracy']
+loss = history.history['loss']
+val_loss = history.history['val_loss']
 
 
-    examples = [
-        "Сегодня съездил на заправку и потратил 40 рублей",
-        "Сходил в ресторан, заказал суши ",
-        "Зашел после учебы купить чебурек",
-        "Сходил на неделю затариться продуктами",
-        "Проспал учебу, пришлось вызвать такси за 15 рублей"
-    ]
+epochs_plt = range(1, len(acc)+1)
 
-    def accuracy_text(text):
-        input_texts = tf.constant([text])
-        predictions = export_model.predict(input_texts)
-        print(predictions)
-        if predictions<=0.5:
-            return 'Покупка записана в Рестораны и еда'
-        else:
-            return 'Покупка записана в Транспорт'
+plt.plot(epochs_plt, loss, 'bo', label='Training loss')
+plt.plot(epochs_plt, val_loss, 'b', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.show()
+
+plt.plot(epochs_plt, acc, 'bo', label='Training acc')
+plt.plot(epochs_plt, val_acc, 'b', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend(loc='lower right')
+
+plt.show()
+
+export_model = tf.keras.Sequential([
+    vectorize_layer,
+    model
+])
+
+export_model.compile(
+    loss=losses.BinaryCrossentropy(from_logits=False),
+    optimizer='adam',
+    metrics=['accuracy']
+)
+
+loss, accuracy = export_model.evaluate(raw_test_ds)
+print(accuracy)
+
+
+examples = [
+    "Сегодня съездил на заправку и потратил 40 рублей",
+    "Сходил в ресторан, заказал суши ",
+    "Зашел после учебы купить чебурек",
+    "Сходил на неделю затариться продуктами",
+    "Проспал учебу, пришлось вызвать такси за 15 рублей"
+]
+
+def accuracy_text(text):
+    input_texts = tf.constant([text])
+    predictions = export_model.predict(input_texts)
+    print(predictions)
+    if predictions<=0.5:
+        return 'Покупка записана в Рестораны и еда'
+    else:
+        return 'Покупка записана в Транспорт'
 
 
 
-    byte_examples = [s.encode('utf-8') for s in examples]
-    input_texts = tf.constant(byte_examples, dtype=tf.string)
-    vectorized_texts = vectorize_layer(input_texts)
-    predictions_m = model.predict(vectorized_texts)
-    print(predictions_m)
+byte_examples = [s.encode('utf-8') for s in examples]
+input_texts = tf.constant(byte_examples, dtype=tf.string)
+vectorized_texts = vectorize_layer(input_texts)
+predictions_m = model.predict(vectorized_texts)
+print(predictions_m)
 
 
 
