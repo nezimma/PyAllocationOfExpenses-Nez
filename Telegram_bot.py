@@ -21,7 +21,7 @@ password_service = "12345"
 db_name = "allocationofexpenses"
 
 interval = {"неделя":7,
-            "день":1}
+            "день":1}#
 
 
 
