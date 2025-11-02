@@ -6,6 +6,8 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters.command import Command
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
+
+import Cloudwork
 from Data_base import db
 from datetime import date, datetime
 import re
@@ -97,14 +99,14 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
         file_path = file_info.file_path
         await bot.download_file(file_path, destination=ogg_path)
 
-        with open(ogg_path, 'rb') as f:
-            audio_bytes = f.read()
 
+        file_path = Cloudwork.backup(ogg_path, message.from_user.id)
+        print(file_path)
         speech_processor = Speech_Recognition.Speech_voice()
         recognized_text = speech_processor.convertation(ogg_path, wav_path)
         print(f"Результат распознавания: {recognized_text}")
 
-        db.voice_recognize(recognized_text, audio_bytes)
+        db.voice_recognize(recognized_text, file_path)
 
         if recognized_text in ["Не удалось распознать речь", "Ошибка сервиса распознавания речи"]:
             await message.answer(f"❌ {recognized_text}")

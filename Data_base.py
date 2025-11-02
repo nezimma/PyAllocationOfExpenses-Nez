@@ -44,6 +44,8 @@ class Postgresql:
                                  (random.randint(1, len(amount_manager)), unical_code, str(login), str(password),))
                 self.connection.commit()
 
+    # def expenses(self, user_id, category, audio_data):
+
     def voice_recognize(self, recognize_text, audio_data): # здесь будет прописано хранение аудиозаписей
         self.cur.execute('insert into voice_message (recognized_text, audio_data) values (%s,%s)',
                          (recognize_text, audio_data,))
