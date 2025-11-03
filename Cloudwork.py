@@ -33,7 +33,7 @@ def backup(local_file_path, tg_username):
     # Проверяем и создаем папку с датой
     create_folder(date_folder)
 
-    time_str = datetime.now().strftime("%H:%M:%S")
+    time_str = datetime.now().strftime("%H%M%S")
     remote_filename = f"audiofile_{tg_username}_{time_str}.ogg"
     remote_path = f"AllocationOfExpenses_voices/{date_folder}/{remote_filename}"
 

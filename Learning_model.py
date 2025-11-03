@@ -173,9 +173,9 @@ def accuracy_text(text):
     predictions = export_model.predict(input_texts)
     print(predictions)
     if predictions<=0.5:
-        return 'Покупка записана в Рестораны и еда'
+        return 'Рестораны и еда'
     else:
-        return 'Покупка записана в Транспорт'
+        return 'Транспорт'
 
 
 
