@@ -11,7 +11,7 @@ import Cloudwork
 from Data_base import db
 from datetime import date, datetime
 import re
-# import Learning_model
+import Learning_model
 import Speech_Recognition
 
 API = '8231618759:AAFQiJ2pUf6ds8Gx4Ze41vVaiUjJoOAMTlU'
@@ -22,8 +22,7 @@ user = "postgres"
 password_service = "12345"
 db_name = "allocationofexpenses"
 
-interval = {"неделя":7,
-            "день":1}
+
 
 
 
@@ -39,7 +38,7 @@ class BotState(StatesGroup):
 
 @dp.message(Command('click'))
 async def click_mat(message: types.Message):
-    await bot.send_message(chat_id=1513094869, text='хихихиххихихихихих')
+    await bot.send_message(chat_id=748256674, text='Покупка записана в Рестораны и еда')
 @dp.message(Command("start"))
 async def login_user(message: types.Message):
     kb = [[types.KeyboardButton(text="Регистрация", request_contact=True)]]
@@ -149,11 +148,11 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
 
     if recognized_text in ["Не удалось распознать речь", "Ошибка сервиса распознавания речи"]:
         await message.answer(f"❌ {recognized_text}")
-        return
+        return None
 
-    # recognized_category = Learning_model.accuracy_text(recognized_text)
-    # await message.answer(f"🎤 Покупка записана в {recognized_category}")
-    # db.expenses(message.from_user.id, recognized_category, file_path)
+    recognized_category = Learning_model.accuracy_text(recognized_text)
+    await message.answer(f"🎤 Покупка записана в {recognized_category}")
+    db.expenses(message.from_user.id, recognized_category, file_path)
     await state.update_data(recognized_text=recognized_text)
 
 
@@ -212,7 +211,7 @@ async def time_callback(message: types.Message, state: FSMContext):
         await manege_callback(message)
     else:
         text_date = await state.get_data()
-        db.reccurent_templates(time+' '+text_date['date'], interval[text_date['date'].lower()], time)
+        db.reccurent_templates(time+' '+text_date['date'], text_date['date'].lower(), time)
         user_id = message.from_user.id
         db.reminder(time+' '+text_date['date'], str(text_date["text"]), user_id)
         await message.answer("Запись выполнена успешно")
@@ -221,27 +220,29 @@ async def time_callback(message: types.Message, state: FSMContext):
 @dp.message(F.text.lower() == 'управлять напоминаниями')
 async def manege_callback(message: types.Message):
     mass = []
-    inverse_interval = {v: k for k, v in interval.items()}
     user_id = message.from_user.id
     rows = db.call_reminder(user_id)
+    print(rows)
     for row in rows:
         for i in range(len(row)):
             mass.append(row[i])
         if mass[6] != None:
             delta = date.today() - mass[7]
             activiti = 'Активно' if mass[8] else 'Не активно'
+            inline_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text='Включить/Выключить', callback_data=f"activate_{mass[9]}")]])
             await message.answer(f'Привычка "{mass[0].capitalize()}"\n'
                                  f'Интевал повторения "{mass[6]}"\n'
-                                 f'Следующее напоминание через "{delta.days % int(mass[6])} дней в {mass[4]}"\n'
-                                 f'Активность "{activiti}"')
+                                 f'Следующее напоминание через "{str(delta.days % int(mass[6])) + "дней" if delta.days % int(mass[6]) != 0 else "Сегодня"} в {str(mass[4])[:5]}"\n'
+                                 f'Активность "{activiti}"', reply_markup=inline_kb)
         else:
             inline_kb = InlineKeyboardMarkup(inline_keyboard=[[
                         InlineKeyboardButton(text='Привычка', callback_data=f"habit_{mass[5]}"),
                         InlineKeyboardButton(text='Цель', callback_data=f'aim_{mass[5]}')],
                         [InlineKeyboardButton(text='Удалить', callback_data=f'delete_{mass[5]}')]])
             await message.answer(f'Напоминание "{mass[0].capitalize()}"\n'
-                                 f'Дата напоминания "{inverse_interval[mass[3]].capitalize()}"\n'
-                                 f'Время вызова "{mass[4]}"', reply_markup=inline_kb)
+                                 f'Дата напоминания "{mass[3]}"\n'
+                                 f'Время вызова "{str(mass[4])[:5]}"', reply_markup=inline_kb)
         mass.clear()
 
 @dp.callback_query(lambda c: c.data.startswith('delete'))
@@ -261,7 +262,25 @@ async def get_frequency(message: types.Message, state: FSMContext):
     remind_id = await state.get_data()
     remind_id = remind_id.get('number_reminder')
     db.create_habit(frequency, remind_id)
+    await message.answer("Привычка создана")
     await state.clear()
+
+@dp.callback_query(lambda c: c.data.startswith("activate"))
+async def on_off(cb: types.CallbackQuery):
+    habit_id = cb.data.split("_")[1]
+    row = db.review_habit_active(habit_id)
+    print(row)
+    # await cb.answer()
+    delta = date.today() - row[3]
+    activiti = 'Активно' if row[4] else 'Не активно'
+    inline_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text='Включить/Выключить', callback_data=f"activate_{row[0]}")]])
+    await cb.message.edit_text(f'Привычка "{row[5].capitalize()}"\n'
+                         f'Интевал повторения "{row[2]}"\n'
+                         f'Следующее напоминание через "{str(delta.days % int(row[2])) + "дней" if delta.days % int(row[2]) != 0 else "Сегодня"} в {str(row[6])[:5]}"\n'
+                         f'Активность "{activiti}"', reply_markup=inline_kb)
+
+
 
 
 

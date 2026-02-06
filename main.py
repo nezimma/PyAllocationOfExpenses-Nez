@@ -1,14 +1,15 @@
-# ТУТ НАХОДИТСЯ ПРЕОБРАХОВАНИЕ ТЕКСТА В ОБЛАКО СЛОВ ДЛЯ КРАСОТЫ
+# # ТУТ НАХОДИТСЯ ПРЕОБРАХОВАНИЕ ТЕКСТА В ОБЛАКО СЛОВ ДЛЯ КРАСОТЫ
+#
+# from wordcloud import WordCloud
+# import matplotlib.pyplot as plt
+# import json
+# import numpy as np
+# from PIL import Image
+# from wordcloud.color_from_image import ImageColorGenerator
+# import os
+# from datetime import date, datetime
 
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
-import json
-import numpy as np
-from PIL import Image
-from wordcloud.color_from_image import ImageColorGenerator
-import os
-from datetime import date, datetime
-
+from Data_base import db
 
 # # Массив русских стоп слов
 #
@@ -224,8 +225,13 @@ russian_stopwords = {
 #             "день":1}
 #
 # print(interval[text_date['date']])
-date_str = '2025-10-28'
-dt = datetime.strptime(date_str, '%Y-%m-%d').date()  # преобразование строки в date
+# date_str = '2025-10-28'
+# dt = datetime.strptime(date_str, '%Y-%m-%d').date()  # преобразование строки в date
+#
+# delta = date.today() - dt
+# print(delta.days)
+#
+# db.expenses(2,1,5,3, "Сходил в магазин купил колы потратил")
 
-delta = date.today() - dt
-print(delta.days)
+
+

@@ -1,7 +1,7 @@
 import psycopg2
 import random
 from datetime import date
-from natasha import MoneyExtractor, MorphVocab
+import natasha
 import re
 
 
@@ -32,8 +32,8 @@ def normalize_slang(text: str) -> str:
 
 def split_text_and_amount(text: str):
 
-    morph = MorphVocab()
-    extractor = MoneyExtractor(morph)
+    morph = natasha.MorphVocab()
+    extractor = natasha.MoneyExtractor(morph)
     text = text.lower().strip()
     text = normalize_slang(text)
 
@@ -104,10 +104,8 @@ class Postgresql:
     def expenses(self, user_id, category, audio_data):
         self.cur.execute('select user_id from users where telegram_id=%s', (user_id,))
         user_id_db = self.cur.fetchone()
-        print(category)
         self.cur.execute('select category_id from categories where name=%s', (category,))
         category_db = self.cur.fetchone()
-        print(category_db)
         self.cur.execute('select voice_id, recognized_text from voice_message where audio_data=%s', (audio_data,))
         voice_mess = self.cur.fetchall()
         desc, amount, cur = split_text_and_amount(voice_mess[0][1])
@@ -130,6 +128,7 @@ class Postgresql:
     def voice_recognize(self, recognize_text, audio_data): # здесь будет прописано хранение аудиозаписей
         self.cur.execute('insert into voice_message (recognized_text, audio_data) values (%s,%s)',
                          (recognize_text, audio_data,))
+        self.connection.rollback()
         self.connection.commit()
         # no_name() отправка в агента обработки текста и обратно в бд
     def close(self):
@@ -154,7 +153,7 @@ class Postgresql:
 
     def call_reminder(self, user_id): # Выгрузка напоминаний пользователя
         self.cur.execute("select r.text, r.is_habit, r.is_goal, rt.interval, rt.time, r.reminder_id, "
-                         "h.frequency, h.start_date, h.active from reminders r "
+                         "h.frequency, h.start_date, h.active, h.habit_id from reminders r "
                          "join users u on r.user_id = u.user_id "
                          "join recurrence_templates rt on r.recurrence_template_id = rt.recurrence_template_id "
                          "left join habits h on r.reminder_id = h.reminder_id and r.is_habit = true "
@@ -171,5 +170,14 @@ class Postgresql:
                          (reminder_id, frequency, today, True))
         self.cur.execute("update reminders set is_habit = True where reminder_id = %s", (reminder_id,))
         self.connection.commit()
+
+    def review_habit_active(self, habit_id):
+        self.cur.execute("update habits set active = not active where habit_id = %s", (habit_id,))
+        self.connection.commit()
+        self.cur.execute("select h.*, r.text, rt.time from habits h "
+                         "join reminders r on r.reminder_id = h.reminder_id "
+                         "join recurrence_templates rt on r.recurrence_template_id = rt.recurrence_template_id "
+                         "where habit_id = %s", (habit_id,))
+        return self.cur.fetchone()
 
 db = Postgresql(host, user, password, db_name)
