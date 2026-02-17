@@ -136,10 +136,9 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
     await bot.download_file(file_path, destination=ogg_path)
 
 
-    file_path = Cloudwork.backup(ogg_path, message.from_user.id)
+    asyncio.create_task(run_backup_async(ogg_path, message.from_user.id))
     print(file_path)
-    speech_processor = Speech_Recognition.Speech_voice()
-    recognized_text = speech_processor.convertation(ogg_path, wav_path)
+    recognized_text = await recognize_async(ogg_path, wav_path)
     print(f"Результат распознавания: {recognized_text}")
 
     db.voice_recognize(recognized_text, file_path)
@@ -163,6 +162,29 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
                 os.unlink(file_path)
             except:
                 pass
+
+#ассинхронная обертка для облака
+async def run_backup_async(path, user_id):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        Cloudwork.backup,
+        path,
+        user_id
+    )
+
+#ассинхронная обертка для перевода в текст
+async def recognize_async(ogg_path, wav_path):
+    loop = asyncio.get_running_loop()
+    speech_processor = Speech_Recognition.Speech_voice()
+
+    return await loop.run_in_executor(
+        None,
+        speech_processor.convertation,
+        ogg_path,
+        wav_path
+    )
+
 
 @dp.message(F.text.lower() == "напоминания")
 async def start_callback(message: types.Message):

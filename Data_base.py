@@ -1,4 +1,6 @@
 import psycopg2
+from psycopg2 import Error
+import logging
 import random
 from datetime import date
 import natasha
@@ -78,6 +80,7 @@ class Postgresql:
                 user=user,
                 password=password,
                 database=db_name,
+                port=5432
             )
             cls._instance.cur = cls._instance.connection.cursor()
         return cls._instance
@@ -93,7 +96,7 @@ class Postgresql:
             raise e
 
         print(result)
-        if result != []:
+        if result == []:
             if isinstance(unical_code, int):
                 self.cur.execute('select * from managers')
                 amount_manager = self.cur.fetchall()
@@ -108,28 +111,32 @@ class Postgresql:
         category_db = self.cur.fetchone()
         self.cur.execute('select voice_id, recognized_text from voice_message where audio_data=%s', (audio_data,))
         voice_mess = self.cur.fetchall()
+        print(voice_mess)
         desc, amount, cur = split_text_and_amount(voice_mess[0][1])
         self.cur.execute('insert into expenses (user_id, category_id, voice_id, amount, description) '
                          'values (%s,%s,%s,%s,%s)', (user_id_db, category_db, voice_mess[0][0], amount, desc))
         self.connection.commit()
 
     def return_expenses(self, user_id):
-        self.cur.execute('''
-                            SELECT ex.amount, ex.description, ex.created_at, c.name 
-                            FROM expenses ex
-                            JOIN users u ON ex.user_id = u.user_id
-                            LEFT JOIN categories c ON ex.category_id = c.category_id
-                            WHERE u.telegram_id = %s
-                            ORDER BY ex.created_at asc
-                        ''', (user_id,))
+        self.cur.execute(
+            '''SELECT ex.amount, ex.description, ex.created_at, c.name 
+            FROM expenses ex
+            JOIN users u ON ex.user_id = u.user_id
+            LEFT JOIN categories c ON ex.category_id = c.category_id
+            WHERE u.telegram_id = %s
+            ORDER BY ex.created_at asc'''
+                        , (user_id,))
         return self.cur.fetchall()
 
 
     def voice_recognize(self, recognize_text, audio_data): # здесь будет прописано хранение аудиозаписей
-        self.cur.execute('insert into voice_message (recognized_text, audio_data) values (%s,%s)',
-                         (recognize_text, audio_data,))
-        self.connection.rollback()
-        self.connection.commit()
+        try:
+            self.cur.execute('insert into voice_message (recognized_text, audio_data) values (%s,%s)',
+                             (recognize_text, audio_data,))
+            self.connection.commit()
+        except Exception as e:
+            self.connection.rollback()
+            raise e
         # no_name() отправка в агента обработки текста и обратно в бд
     def close(self):
         self.cur.close()
