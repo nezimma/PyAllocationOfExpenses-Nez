@@ -187,4 +187,33 @@ class Postgresql:
                          "where habit_id = %s", (habit_id,))
         return self.cur.fetchone()
 
+    def init_model_table(self):
+        self.cur.execute("""
+                         CREATE TABLE IF NOT EXISTS models
+                         (
+                             id SERIAL PRIMARY KEY, name VARCHAR(255),
+                             file_path TEXT NOT NULL,
+                             version INTEGER NOT NULL,
+                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                             )
+                         """)
+        self.connection.commit()
+
+    def save_model_metadata(self, name, file_path, version):
+        self.cur.execute(
+            "INSERT INTO models (name, file_path, version) VALUES (%s, %s, %s)",
+            (name, file_path, version)
+        )
+        self.connection.commit()
+
+    def get_latest_model(self, name):
+        self.cur.execute("""
+                         SELECT file_path, version
+                         FROM models
+                         WHERE name = %s
+                         ORDER BY version DESC LIMIT 1
+                         """, (name,))
+
+        return self.cur.fetchone()
+
 db = Postgresql(host, user, password, db_name)

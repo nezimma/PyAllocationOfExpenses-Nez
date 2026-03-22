@@ -22,8 +22,8 @@ user = "postgres"
 password_service = "12345"
 db_name = "allocationofexpenses"
 
-
-
+db.init_model_table()
+Learning_model.init_model()
 
 
 class BotState(StatesGroup):
@@ -149,7 +149,7 @@ async def state_processing_voice(message: types.Message, state:FSMContext):
         await message.answer(f"❌ {recognized_text}")
         return None
 
-    recognized_category = Learning_model.accuracy_text(recognized_text)
+    recognized_category = await predict_async(recognized_text)
     await message.answer(f"🎤 Покупка записана в {recognized_category}")
     db.expenses(message.from_user.id, recognized_category, file_path)
     await state.update_data(recognized_text=recognized_text)
@@ -183,6 +183,15 @@ async def recognize_async(ogg_path, wav_path):
         speech_processor.convertation,
         ogg_path,
         wav_path
+    )
+
+#ассинхронная обортка для предсказания текста
+async def predict_async(text):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        Learning_model.predict_category,
+        text
     )
 
 
@@ -301,36 +310,6 @@ async def on_off(cb: types.CallbackQuery):
                          f'Интевал повторения "{row[2]}"\n'
                          f'Следующее напоминание через "{str(delta.days % int(row[2])) + "дней" if delta.days % int(row[2]) != 0 else "Сегодня"} в {str(row[6])[:5]}"\n'
                          f'Активность "{activiti}"', reply_markup=inline_kb)
-
-
-
-
-
-
-
-
-
-
-
-
-
-# password = message.text
-#     data = await state.get_data()  # достаем сохранённые ранее данные
-#     phone = data.get('phone')
-#     user_id = data.get('user_id')
-#
-#     await message.answer(f'Был записан пароль: {password}')
-#
-#     # Создаём объект подключения к базе
-#     print(user_id, phone, password)
-#     db.loggin(unical_code=user_id, login=phone, password=password)
-#
-#     # Используем клавиатуру и отправляем сообщение
-#     kb = [[types.KeyboardButton(text="Расходы"),
-#            types.KeyboardButton(text="Напоминания")]]
-#     keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
-#     await message.answer("Регистрация прошла успешно", reply_markup=keyboard)
-#     await state.clear()
 
 
 
