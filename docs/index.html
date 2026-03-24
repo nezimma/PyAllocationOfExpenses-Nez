@@ -17,19 +17,35 @@
   <div class="header__inner">
     <div class="header__brand">
       <span class="header__logo">◈</span>
-      <span class="header__title">Расходы</span>
+      <span class="header__title" id="headerTitle">Расходы</span>
     </div>
     <div class="header__controls">
-      <button class="period-btn active" data-period="week">Нед</button>
-      <button class="period-btn" data-period="month">Мес</button>
-      <button class="period-btn" data-period="year">Год</button>
+      <div id="expensePeriodControls">
+        <button class="period-btn active" data-period="week">Нед</button>
+        <button class="period-btn" data-period="month">Мес</button>
+        <button class="period-btn" data-period="year">Год</button>
+      </div>
       <button class="theme-toggle" id="themeToggle" aria-label="Переключить тему">
         <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
     </div>
   </div>
+  <!-- NAV TABS -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-page="expenses">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      Расходы
+    </button>
+    <button class="nav-tab" data-page="reminders">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      Напоминания
+    </button>
+  </nav>
 </header>
+
+<!-- ────── EXPENSES PAGE ────── -->
+<div id="expensesPage" class="page">
 
 <!-- ────── TOTAL CARD ────── -->
 <section class="total-card">
@@ -182,8 +198,192 @@
   </div>
 </div>
 
+</div><!-- end #expensesPage -->
+
+<!-- ────── REMINDERS PAGE ────── -->
+<div id="remindersPage" class="page hidden">
+
+  <!-- Type filter tabs -->
+  <div class="rem-type-tabs">
+    <button class="rem-type-tab active" data-type="all">Все</button>
+    <button class="rem-type-tab" data-type="reminder">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Разовые
+    </button>
+    <button class="rem-type-tab" data-type="habit">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Привычки
+    </button>
+    <button class="rem-type-tab" data-type="goal">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Цели
+    </button>
+  </div>
+
+  <!-- Stats row -->
+  <div class="rem-stats">
+    <div class="rem-stat">
+      <span class="rem-stat__num" id="statTotal">0</span>
+      <span class="rem-stat__label">Всего</span>
+    </div>
+    <div class="rem-stat">
+      <span class="rem-stat__num" id="statActive">0</span>
+      <span class="rem-stat__label">Активных</span>
+    </div>
+    <div class="rem-stat">
+      <span class="rem-stat__num" id="statToday">0</span>
+      <span class="rem-stat__label">Сегодня</span>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div class="rem-list-header">
+    <span class="rem-list-title" id="remListTitle">Все напоминания</span>
+    <button class="rem-add-btn" id="openCreateReminder">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Создать
+    </button>
+  </div>
+
+  <ul class="rem-list" id="remindersList"></ul>
+</div>
+
+<!-- ────── CREATE/EDIT REMINDER MODAL ────── -->
+<div class="modal-overlay" id="reminderModalOverlay">
+  <div class="modal" id="reminderModal">
+    <div class="modal__header">
+      <span class="modal__title" id="reminderModalTitle">Новое напоминание</span>
+      <button class="modal__close" id="reminderModalClose">✕</button>
+    </div>
+
+    <!-- Step indicator -->
+    <div class="modal-steps" id="reminderSteps">
+      <div class="modal-step active" data-step="1">
+        <span class="modal-step__dot">1</span>
+        <span class="modal-step__label">Основное</span>
+      </div>
+      <div class="modal-step__line"></div>
+      <div class="modal-step" data-step="2">
+        <span class="modal-step__dot">2</span>
+        <span class="modal-step__label">Тип</span>
+      </div>
+    </div>
+
+    <div class="modal__body">
+      <!-- STEP 1 -->
+      <div class="rem-form-step" id="remStep1">
+        <label class="field">
+          <span class="field__label">Название</span>
+          <input class="field__input" id="remTitle" type="text" placeholder="Например: Выпить воду" />
+        </label>
+        <label class="field">
+          <span class="field__label">Дата</span>
+          <input class="field__input" id="remDate" type="date" />
+        </label>
+        <label class="field">
+          <span class="field__label">Время</span>
+          <input class="field__input" id="remTime" type="time" />
+        </label>
+        <button class="btn btn--primary" id="remStep1Next">Далее →</button>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="rem-form-step hidden" id="remStep2">
+        <div class="rem-type-select">
+          <button class="rem-type-card active" data-rtype="reminder">
+            <span class="rem-type-card__icon">🔔</span>
+            <span class="rem-type-card__name">Разовое</span>
+            <span class="rem-type-card__desc">Одно уведомление в нужное время</span>
+          </button>
+          <button class="rem-type-card" data-rtype="habit">
+            <span class="rem-type-card__icon">🔁</span>
+            <span class="rem-type-card__name">Привычка</span>
+            <span class="rem-type-card__desc">Повторяется каждые N дней бессрочно</span>
+          </button>
+          <button class="rem-type-card" data-rtype="goal">
+            <span class="rem-type-card__icon">🎯</span>
+            <span class="rem-type-card__name">Цель</span>
+            <span class="rem-type-card__desc">Повторяется N дней до финальной даты</span>
+          </button>
+        </div>
+
+        <!-- Habit/Goal extra fields -->
+        <div class="rem-extra-fields hidden" id="remExtraFields">
+          <label class="field">
+            <span class="field__label">Интервал (раз в N дней)</span>
+            <input class="field__input" id="remInterval" type="number" min="1" placeholder="Например: 1" />
+          </label>
+          <label class="field hidden" id="remEndDateField">
+            <span class="field__label">Дата окончания цели</span>
+            <input class="field__input" id="remEndDate" type="date" />
+          </label>
+        </div>
+
+        <div class="modal__footer" style="margin-top:20px">
+          <button class="btn btn--ghost" id="remStep2Back">← Назад</button>
+          <button class="btn btn--primary" id="remSave">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────── GOAL DETAIL MODAL ────── -->
+<div class="modal-overlay" id="goalModalOverlay">
+  <div class="modal" id="goalModal">
+    <div class="modal__header">
+      <span class="modal__title" id="goalModalTitle">Прогресс цели</span>
+      <button class="modal__close" id="goalModalClose">✕</button>
+    </div>
+    <div class="modal__body" id="goalModalBody"></div>
+  </div>
+</div>
+
+<!-- ────── EDIT REMINDER MODAL (existing expenses) ────── -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="editModal">
+    <div class="modal__header">
+      <span class="modal__title">Редактировать</span>
+      <button class="modal__close" id="modalClose">✕</button>
+    </div>
+    <div class="modal__body">
+      <label class="field">
+        <span class="field__label">Название</span>
+        <input class="field__input" id="editName" type="text" />
+      </label>
+      <label class="field">
+        <span class="field__label">Сумма, Br</span>
+        <input class="field__input" id="editAmount" type="number" />
+      </label>
+      <label class="field">
+        <span class="field__label">Категория</span>
+        <select class="field__input" id="editCategory">
+          <option value="restaurants">🍽 Рестораны и еда</option>
+          <option value="transport">🚗 Транспорт</option>
+          <option value="housing">🏠 Жильё</option>
+          <option value="household">🧹 Бытовые товары</option>
+          <option value="clothes">👗 Одежда и мода</option>
+          <option value="electronics">💻 Техника и электроника</option>
+          <option value="education">📚 Образование</option>
+          <option value="entertainment">🎮 Развлечения</option>
+          <option value="health">💊 Красота и здоровье</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field__label">Дата</span>
+        <input class="field__input" id="editDate" type="datetime-local" />
+      </label>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" id="modalCancel">Отмена</button>
+      <button class="btn btn--primary" id="modalSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/data.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/app.js"></script>
+<script src="js/reminders.js"></script>
 </body>
 </html>
