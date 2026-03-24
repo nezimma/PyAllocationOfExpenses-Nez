@@ -186,7 +186,7 @@ function renderList(items) {
           </div>
         </div>
         <div class="expense-item__right">
-          <div class="expense-item__amount">${e.amount.toLocaleString('ru-RU')} ₽</div>
+          <div class="expense-item__amount">${e.amount.toLocaleString('ru-RU')} Br</div>
           <div class="expense-item__time">${dateStr}, ${timeStr}</div>
         </div>
         <span class="expense-item__edit-hint">✎</span>

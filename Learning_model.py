@@ -15,27 +15,27 @@ models = None
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-def main():
-    db.init_model_table()
-
-    choice = input("1 - Train new model\n2 - Use latest model\nChoose: ")
-
-    if choice == "1":
-        model = train_model()
-
-        save_choice = input("Save this model? (y/n): ")
-        if save_choice.lower() == "y":
-            save_model(model)
-
-    elif choice == "2":
-        model = load_latest_model()
-        if model is None:
-            print("No saved models found.")
-        else:
-            print("Model loaded successfully.")
-
-    else:
-        print("Invalid choice.")
+# def main():
+#     db.init_model_table()
+#
+#     choice = input("1 - Train new model\n2 - Use latest model\nChoose: ")
+#
+#     if choice == "1":
+#         model = train_model()
+#
+#         save_choice = input("Save this model? (y/n): ")
+#         if save_choice.lower() == "y":
+#             save_model(model)
+#
+#     elif choice == "2":
+#         model = load_latest_model()
+#         if model is None:
+#             print("No saved models found.")
+#         else:
+#             print("Model loaded successfully.")
+#
+#     else:
+#         print("Invalid choice.")
 
 
 def train_model():
@@ -263,24 +263,24 @@ def load_latest_model():
 
 
 
-def init_model():
-    global models
-
-    latest = db.get_latest_model(MODEL_NAME)
-
-    if not latest:
-        print("No trained model found.")
-        return None
-
-    file_path, version = latest
-
-    if not os.path.exists(file_path):
-        print("Model file not found.")
-        return None
-
-    print(f"Loading model version {version}")
-    model = tf.keras.models.load_model(file_path)
-    return model
+# def init_model():
+#     global models
+#
+#     latest = db.get_latest_model(MODEL_NAME)
+#
+#     if not latest:
+#         print("No trained model found.")
+#         return None
+#
+#     file_path, version = latest
+#
+#     if not os.path.exists(file_path):
+#         print("Model file not found.")
+#         return None
+#
+#     print(f"Loading model version {version}")
+#     model = tf.keras.models.load_model(file_path)
+#     return model
 
 
 def predict_category(text: str):
@@ -298,7 +298,7 @@ def predict_category(text: str):
         return 'Транспорт'
 
 
-main()
+# main()
 
 
 

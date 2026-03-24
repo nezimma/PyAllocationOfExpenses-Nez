@@ -108,7 +108,7 @@ function tooltipConfig() {
     titleFont: { family: 'Unbounded', size: 12 },
     bodyFont: { family: 'Manrope', size: 12 },
     callbacks: {
-      label: ctx => ' ' + ctx.formattedValue.replace(/,/g, ' ') + ' ₽'
+      label: ctx => ' ' + ctx.formattedValue.replace(/,/g, ' ') + ' Br'
     }
   };
 }

@@ -4,7 +4,7 @@ import asyncio
 from aiogram import Dispatcher, Bot, types, F
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters.command import Command
-from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.fsm.context import FSMContext
 
 import Cloudwork
@@ -22,8 +22,8 @@ user = "postgres"
 password_service = "12345"
 db_name = "allocationofexpenses"
 
-db.init_model_table()
-Learning_model.init_model()
+# db.init_model_table()
+# Learning_model.init_model()
 
 
 class BotState(StatesGroup):
@@ -46,6 +46,7 @@ async def login_user(message: types.Message):
         keyboard=kb,
         resize_keyboard=True
     )
+
     await message.answer("добропожаловаться", reply_markup=keyboard)
 
 
