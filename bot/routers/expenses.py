@@ -33,7 +33,6 @@ async def start_recording(message: types.Message, state: FSMContext):
 
 @router.message(BotState.sell_state, F.voice)
 async def process_voice(message: types.Message, state: FSMContext, bot: Bot):
-    # Сохраняем аудио во временный файл
     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
         ogg_path = tmp.name
     wav_path = ogg_path.replace(".ogg", ".wav")
@@ -41,13 +40,17 @@ async def process_voice(message: types.Message, state: FSMContext, bot: Bot):
     file_info = await bot.get_file(message.voice.file_id)
     await bot.download_file(file_info.file_path, destination=ogg_path)
 
-    # Бекап в облако (фоновая задача)
-    asyncio.create_task(_backup_async(ogg_path, message.from_user.id))
-
-    # Распознавание речи
+    # Запускаем бэкап и распознавание параллельно, ждём оба
+    backup_task = asyncio.create_task(_backup_async(ogg_path, message.from_user.id))
     recognized = await _recognize_async(ogg_path, wav_path)
-    logger.info(f"Recognized: {recognized}")
 
+    # Дожидаемся бэкапа перед удалением
+    try:
+        await backup_task
+    except Exception as e:
+        logger.error(f"Backup failed: {e}")
+
+    logger.info(f"Recognized: {recognized}")
     expense_repo.save_voice_message(recognized, file_info.file_path)
 
     if recognized in ("Не удалось распознать речь", "Ошибка сервиса распознавания речи"):
@@ -57,7 +60,7 @@ async def process_voice(message: types.Message, state: FSMContext, bot: Bot):
         expense_repo.save_expense(message.from_user.id, category, file_info.file_path)
         await message.answer(f"🎤 Покупка записана в «{category}»")
 
-    # Чистим временные файлы
+    # Теперь чистим — оба таска завершены
     for path in (ogg_path, wav_path):
         if os.path.exists(path):
             try:
