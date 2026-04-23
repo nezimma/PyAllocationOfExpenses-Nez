@@ -2,9 +2,25 @@
 import logging
 from datetime import date
 from database.db import PostgresConnection
-from database.text_parser import split_text_and_amount
+from database.text_parser import split_text_and_amount, split_multi_expenses
 
 logger = logging.getLogger(__name__)
+
+# Модель обучена на одних именах категорий, а в БД могут быть другие
+_CATEGORY_ALIASES: dict[str, str] = {
+    "Ресторан и еда": "Рестораны и еда",
+}
+
+# Маппинг название в БД → ключ для frontend
+_CATEGORY_TO_KEY: dict[str, str] = {
+    "Рестораны и еда": "restaurants",
+    "Транспорт":       "transport",
+    "Жилье":           "housing",
+}
+
+
+def _normalize_category(name: str) -> str:
+    return _CATEGORY_ALIASES.get(name, name)
 
 
 class ExpenseRepository:
@@ -24,9 +40,6 @@ class ExpenseRepository:
         self.db.execute("SELECT user_id FROM users WHERE telegram_id = %s", (telegram_id,))
         user_id = self.db.fetchone()
 
-        self.db.execute("SELECT category_id FROM categories WHERE name = %s", (category,))
-        category_id = self.db.fetchone()
-
         self.db.execute(
             "SELECT voice_id, recognized_text FROM voice_message WHERE audio_data = %s",
             (audio_data,)
@@ -38,11 +51,46 @@ class ExpenseRepository:
         voice_id, recognized_text = voice_row
         desc, amount, _ = split_text_and_amount(recognized_text)
 
+        category = _normalize_category(category)
+        self.db.execute("SELECT category_id FROM categories WHERE name = %s", (category,))
+        category_id = self.db.fetchone()
+
         self.db.execute(
             "INSERT INTO expenses (user_id, category_id, voice_id, amount, description) "
             "VALUES (%s, %s, %s, %s, %s)",
             (user_id, category_id, voice_id, amount, desc)
         )
+        self.db.commit()
+
+    def save_expense_items(
+        self,
+        telegram_id: int,
+        items: list[tuple[str, str, float | None]],
+        audio_data: str,
+    ):
+        """Сохраняет несколько расходов для одного голосового сообщения."""
+        self.db.execute("SELECT user_id FROM users WHERE telegram_id = %s", (telegram_id,))
+        user_id = self.db.fetchone()
+
+        self.db.execute(
+            "SELECT voice_id FROM voice_message WHERE audio_data = %s",
+            (audio_data,)
+        )
+        voice_row = self.db.fetchone()
+        if not voice_row:
+            raise ValueError(f"Voice message not found for audio: {audio_data}")
+        voice_id = voice_row[0]
+
+        for category, desc, amount in items:
+            category = _normalize_category(category)
+            self.db.execute("SELECT category_id FROM categories WHERE name = %s", (category,))
+            category_id = self.db.fetchone()
+            self.db.execute(
+                "INSERT INTO expenses (user_id, category_id, voice_id, amount, description) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (user_id, category_id, voice_id, amount, desc)
+            )
+
         self.db.commit()
 
     def get_expenses(self, telegram_id: int) -> list[tuple]:
@@ -57,3 +105,26 @@ class ExpenseRepository:
             (telegram_id,)
         )
         return self.db.fetchall()
+
+    def get_expenses_for_api(self, telegram_id: int) -> list[dict]:
+        """Возвращает расходы в формате для frontend."""
+        self.db.execute(
+            """SELECT ex.description, c.name, ex.amount, ex.created_at
+               FROM expenses ex
+               JOIN users u ON ex.user_id = u.user_id
+               LEFT JOIN categories c ON ex.category_id = c.category_id
+               WHERE u.telegram_id = %s
+               ORDER BY ex.created_at DESC""",
+            (telegram_id,)
+        )
+        rows = self.db.fetchall()
+        return [
+            {
+                "id":     i + 1,
+                "name":   row[0] or "",
+                "cat":    _CATEGORY_TO_KEY.get(row[1], "other"),
+                "amount": float(row[2]) if row[2] else 0.0,
+                "date":   row[3].isoformat() if row[3] else None,
+            }
+            for i, row in enumerate(rows)
+        ]

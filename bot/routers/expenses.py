@@ -11,6 +11,7 @@ from aiogram.fsm.context import FSMContext
 from bot.states import BotState
 from bot.keyboards import expenses_menu, main_menu
 from database import expenses as expense_repo
+from database.text_parser import split_multi_expenses
 from cloud import disk
 from services.speech_service import SpeechRecognitionService
 from ml import model_svc
@@ -56,9 +57,24 @@ async def process_voice(message: types.Message, state: FSMContext, bot: Bot):
     if recognized in ("Не удалось распознать речь", "Ошибка сервиса распознавания речи"):
         await message.answer(f"❌ {recognized}")
     else:
-        category = await _predict_async(recognized)
-        expense_repo.save_expense(message.from_user.id, category, file_info.file_path)
-        await message.answer(f"🎤 Покупка записана в «{category}»")
+        segments = await _split_async(recognized)
+        categories = await asyncio.gather(*[_predict_async(desc or recognized) for desc, _, _ in segments])
+
+        items = [
+            (category, desc, amount)
+            for (desc, amount, _), category in zip(segments, categories)
+        ]
+        expense_repo.save_expense_items(message.from_user.id, items, file_info.file_path)
+
+        if len(items) == 1:
+            category, desc, amount = items[0]
+            await message.answer(f"🎤 Покупка записана в «{category}»")
+        else:
+            lines = "\n".join(
+                f"• {amount or '?'} → «{cat}» ({desc})"
+                for cat, desc, amount in items
+            )
+            await message.answer(f"🎤 Записано {len(items)} расхода:\n{lines}")
 
     # Теперь чистим — оба таска завершены
     for path in (ogg_path, wav_path):
@@ -108,6 +124,11 @@ async def _backup_async(path: str, user_id: int):
 async def _recognize_async(ogg_path: str, wav_path: str) -> str:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _speech.convert_and_recognize, ogg_path, wav_path)
+
+
+async def _split_async(text: str) -> list[tuple]:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, split_multi_expenses, text)
 
 
 async def _predict_async(text: str) -> str:

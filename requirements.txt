@@ -1,4 +1,5 @@
 aiogram==3.x
+aiohttp>=3.9
 psycopg2-binary
 tensorflow>=2.12
 natasha

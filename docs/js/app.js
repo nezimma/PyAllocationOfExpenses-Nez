@@ -252,4 +252,7 @@ function pluralize(n, one, few, many) {
 }
 
 // ── Init ──
-render();
+(async () => {
+  await loadExpenses();
+  render();
+})();

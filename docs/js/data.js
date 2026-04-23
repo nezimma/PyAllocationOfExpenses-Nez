@@ -1,3 +1,7 @@
+// ─── CONFIG ──────────────────────────────────
+// Замените на реальный адрес вашего сервера при деплое
+const API_BASE = 'http://localhost:8080';
+
 // ─── MOCK DATA ───────────────────────────────
 const CATEGORIES = {
   restaurants:   { label: 'Рестораны и еда',      emoji: '🍽', color: '#FF6B6B' },
@@ -11,7 +15,10 @@ const CATEGORIES = {
   health:        { label: 'Красота и здоровье',    emoji: '💊', color: '#F1948A' },
 };
 
-const EXPENSES = [
+// Заполняется из API; mock-данные используются как запасной вариант
+let EXPENSES = [];
+
+const MOCK_EXPENSES = [
   { id: 1,  name: 'Сходил в Евроопт',                         cat: 'restaurants',   amount: 22, date: '2025-03-23T09:15' },
   { id: 2,  name: 'Вызвал Яндекс.Такси до офиса',             cat: 'transport',     amount: 15,  date: '2025-03-23T10:42' },
   { id: 3,  name: 'Посидел в Тьерри, взял кофе и круассан',   cat: 'restaurants',   amount: 18,  date: '2025-03-23T11:05' },
@@ -37,6 +44,24 @@ const EXPENSES = [
   { id: 23, name: 'Приобрел перчатки для быта',               cat: 'household',     amount: 6, date: '2025-03-13T11:00' },
   { id: 24, name: 'Посидел в Beermania',                      cat: 'restaurants',   amount: 42, date: '2025-03-12T20:30' },
 ];
+
+async function loadExpenses() {
+  const tg = window.Telegram?.WebApp;
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!userId) {
+    // Запуск вне Telegram — показываем mock
+    EXPENSES = [...MOCK_EXPENSES];
+    return;
+  }
+  try {
+    const resp = await fetch(`${API_BASE}/api/expenses/${userId}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    EXPENSES = await resp.json();
+  } catch (e) {
+    console.warn('API недоступен, используем mock-данные:', e);
+    EXPENSES = [...MOCK_EXPENSES];
+  }
+}
 
 // Chart aggregation helpers
 function getBarData(expenses) {
