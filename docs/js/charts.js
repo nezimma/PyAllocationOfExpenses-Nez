@@ -11,8 +11,8 @@ function getChartColors() {
   };
 }
 
-function buildBarChart(expenses) {
-  const { labels, data } = getBarData(expenses);
+function buildBarChart(expenses, period = 'week') {
+  const { labels, data } = getBarData(expenses, period);
   const c = getChartColors();
   return {
     type: 'bar',
@@ -118,14 +118,14 @@ function formatK(v) {
   return v;
 }
 
-function renderChart(type, expenses) {
+function renderChart(type, expenses, period = 'week') {
   currentChartType = type;
   const canvas = document.getElementById('mainChart');
   const ctx = canvas.getContext('2d');
   if (mainChart) { mainChart.destroy(); mainChart = null; }
 
   let cfg;
-  if (type === 'bar')      cfg = buildBarChart(expenses);
+  if (type === 'bar')       cfg = buildBarChart(expenses, period);
   else if (type === 'line') cfg = buildLineChart(expenses);
   else                      cfg = buildDoughnutChart(expenses);
 
