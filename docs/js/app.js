@@ -1,12 +1,12 @@
 // ─── APP ─────────────────────────────────────
 
-// State
 let state = {
   search: '',
   selectedCats: new Set(['all']),
   multiSelect: false,
   sort: 'date-desc',
   editingId: null,
+  periodOffset: 0,  // 0 = current period, -1 = previous, etc.
 };
 
 // ── Telegram Mini App init ──
@@ -14,7 +14,6 @@ if (window.Telegram?.WebApp) {
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
-  // Sync theme with Telegram
   const tgTheme = tg.colorScheme;
   if (tgTheme) document.documentElement.dataset.theme = tgTheme;
 }
@@ -23,9 +22,7 @@ if (window.Telegram?.WebApp) {
 document.getElementById('themeToggle').addEventListener('click', () => {
   const curr = document.documentElement.dataset.theme;
   document.documentElement.dataset.theme = curr === 'dark' ? 'light' : 'dark';
-  // Re-render chart with new colors
-  const filtered = getFiltered();
-  renderChart(currentChartType, filtered);
+  renderChart(currentChartType, getFiltered(), getActivePeriod());
 });
 
 // ── Period buttons ──
@@ -33,8 +30,22 @@ document.querySelectorAll('.period-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    state.periodOffset = 0;
     render();
   });
+});
+
+// ── Period navigation ──
+document.getElementById('periodPrev').addEventListener('click', () => {
+  state.periodOffset -= 1;
+  render();
+});
+
+document.getElementById('periodNext').addEventListener('click', () => {
+  if (state.periodOffset < 0) {
+    state.periodOffset += 1;
+    render();
+  }
 });
 
 // ── Chart tab buttons ──
@@ -42,8 +53,7 @@ document.querySelectorAll('.chart-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const filtered = getFiltered();
-    renderChart(btn.dataset.chart, filtered);
+    renderChart(btn.dataset.chart, getFiltered(), getActivePeriod());
   });
 });
 
@@ -51,7 +61,6 @@ document.querySelectorAll('.chart-tab').forEach(btn => {
 document.getElementById('multiSelectToggle').addEventListener('change', e => {
   state.multiSelect = e.target.checked;
   if (!state.multiSelect) {
-    // Collapse to last selected or 'all'
     const cats = [...state.selectedCats].filter(c => c !== 'all');
     state.selectedCats = new Set([cats[cats.length - 1] || 'all']);
     updateChips();
@@ -118,16 +127,68 @@ document.getElementById('sortBtn').addEventListener('click', () => {
   render();
 });
 
+// ── Period helpers ──
+function getActivePeriod() {
+  return document.querySelector('.period-btn.active')?.dataset.period || 'month';
+}
+
+function getPeriodRange(period, offset = 0) {
+  const now = new Date();
+
+  if (period === 'week') {
+    const dow = now.getDay(); // 0=Sun
+    const daysToMonday = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + daysToMonday + offset * 7);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    return { start: monday, end: sunday };
+  }
+
+  if (period === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  // year
+  const year = now.getFullYear() + offset;
+  return {
+    start: new Date(year, 0, 1, 0, 0, 0, 0),
+    end:   new Date(year, 11, 31, 23, 59, 59, 999),
+  };
+}
+
+function getPeriodLabel(period, offset) {
+  const { start } = getPeriodRange(period, offset);
+
+  if (period === 'week') {
+    const { end } = getPeriodRange(period, offset);
+    const fmt = d => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return `${fmt(start)} — ${fmt(end)}`;
+  }
+  if (period === 'month') {
+    return start.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  }
+  return String(start.getFullYear());
+}
+
 // ── Filtering ──
 function getFiltered() {
-  let list = [...EXPENSES];
+  const period = getActivePeriod();
+  const { start, end } = getPeriodRange(period, state.periodOffset);
 
-  // Category filter
+  let list = EXPENSES.filter(e => {
+    const d = new Date(e.date);
+    return d >= start && d <= end;
+  });
+
   if (!state.selectedCats.has('all')) {
     list = list.filter(e => state.selectedCats.has(e.cat));
   }
 
-  // Search
   if (state.search) {
     list = list.filter(e =>
       e.name.toLowerCase().includes(state.search) ||
@@ -135,7 +196,6 @@ function getFiltered() {
     );
   }
 
-  // Sort
   if (state.sort === 'date-desc') {
     list.sort((a, b) => b.date.localeCompare(a.date));
   } else {
@@ -145,16 +205,54 @@ function getFiltered() {
   return list;
 }
 
-// ── Render list ──
+// ── Delta calculation ──
+function updateDelta() {
+  const period = getActivePeriod();
+  const offset = state.periodOffset;
+
+  const { start: s1, end: e1 } = getPeriodRange(period, offset);
+  const { start: s2, end: e2 } = getPeriodRange(period, offset - 1);
+
+  const sumPeriod = (s, e) =>
+    EXPENSES.filter(exp => { const d = new Date(exp.date); return d >= s && d <= e; })
+            .reduce((acc, exp) => acc + exp.amount, 0);
+
+  const current  = sumPeriod(s1, e1);
+  const previous = sumPeriod(s2, e2);
+
+  const deltaEl = document.querySelector('.total-card__delta');
+
+  if (previous === 0) {
+    deltaEl.innerHTML = `<span class="delta" style="opacity:.6">— нет данных за прошлый период</span>`;
+    return;
+  }
+
+  const pct = Math.round((current - previous) / previous * 100);
+  const up  = pct >= 0;
+  deltaEl.innerHTML = `
+    <span class="delta delta--${up ? 'up' : 'down'}">${up ? '↑' : '↓'} ${Math.abs(pct)}%</span>
+    по сравнению с прошлым периодом
+  `;
+}
+
+// ── Render ──
 function render() {
+  const period = getActivePeriod();
   const filtered = getFiltered();
-  renderChart(currentChartType, filtered);
+
+  // Period nav label + next button state
+  document.getElementById('periodLabel').textContent = getPeriodLabel(period, state.periodOffset);
+  document.getElementById('periodNext').disabled = state.periodOffset >= 0;
+
+  renderChart(currentChartType, filtered, period);
   renderList(filtered);
 
   const total = filtered.reduce((a, e) => a + e.amount, 0);
   document.getElementById('totalAmount').textContent = total.toLocaleString('ru-RU');
   document.getElementById('expensesCount').textContent =
     filtered.length + ' ' + pluralize(filtered.length, 'запись', 'записи', 'записей');
+
+  updateDelta();
 }
 
 function renderList(items) {
@@ -193,7 +291,6 @@ function renderList(items) {
       </li>`;
   }).join('');
 
-  // Click to edit
   ul.querySelectorAll('.expense-item').forEach(item => {
     item.addEventListener('click', () => openModal(+item.dataset.id));
   });
@@ -207,10 +304,10 @@ function openModal(id) {
   if (!expense) return;
   state.editingId = id;
 
-  document.getElementById('editName').value = expense.name;
-  document.getElementById('editAmount').value = expense.amount;
+  document.getElementById('editName').value    = expense.name;
+  document.getElementById('editAmount').value  = expense.amount;
   document.getElementById('editCategory').value = expense.cat;
-  document.getElementById('editDate').value = expense.date;
+  document.getElementById('editDate').value    = expense.date;
 
   modalOverlay.classList.add('open');
   document.body.style.overflow = 'hidden';
