@@ -47,6 +47,13 @@
 <!-- ────── EXPENSES PAGE ────── -->
 <div id="expensesPage" class="page">
 
+<!-- ────── PERIOD NAVIGATION ────── -->
+<div class="period-nav" id="periodNav">
+  <button class="period-nav__btn" id="periodPrev">‹</button>
+  <span class="period-nav__label" id="periodLabel"></span>
+  <button class="period-nav__btn" id="periodNext" disabled>›</button>
+</div>
+
 <!-- ────── TOTAL CARD ────── -->
 <section class="total-card">
   <div class="total-card__label">Всего потрачено</div>
@@ -156,47 +163,6 @@
   <ul class="expenses-list" id="expensesList"></ul>
 </section>
 
-<!-- ────── EDIT MODAL ────── -->
-<div class="modal-overlay" id="modalOverlay">
-  <div class="modal" id="editModal">
-    <div class="modal__header">
-      <span class="modal__title">Редактировать</span>
-      <button class="modal__close" id="modalClose">✕</button>
-    </div>
-    <div class="modal__body">
-      <label class="field">
-        <span class="field__label">Название</span>
-        <input class="field__input" id="editName" type="text" />
-      </label>
-      <label class="field">
-        <span class="field__label">Сумма, Br</span>
-        <input class="field__input" id="editAmount" type="number" />
-      </label>
-      <label class="field">
-        <span class="field__label">Категория</span>
-        <select class="field__input" id="editCategory">
-          <option value="restaurants">🍽 Рестораны и еда</option>
-          <option value="transport">🚗 Транспорт</option>
-          <option value="housing">🏠 Жильё</option>
-          <option value="household">🧹 Бытовые товары</option>
-          <option value="clothes">👗 Одежда и мода</option>
-          <option value="electronics">💻 Техника и электроника</option>
-          <option value="education">📚 Образование</option>
-          <option value="entertainment">🎮 Развлечения</option>
-          <option value="health">💊 Красота и здоровье</option>
-        </select>
-      </label>
-      <label class="field">
-        <span class="field__label">Дата</span>
-        <input class="field__input" id="editDate" type="datetime-local" />
-      </label>
-    </div>
-    <div class="modal__footer">
-      <button class="btn btn--ghost" id="modalCancel">Отмена</button>
-      <button class="btn btn--primary" id="modalSave">Сохранить</button>
-    </div>
-  </div>
-</div>
 
 </div><!-- end #expensesPage -->
 
@@ -339,7 +305,7 @@
   </div>
 </div>
 
-<!-- ────── EDIT REMINDER MODAL (existing expenses) ────── -->
+<!-- ────── EDIT EXPENSE MODAL ────── -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal" id="editModal">
     <div class="modal__header">
