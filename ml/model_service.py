@@ -88,9 +88,21 @@ class ExpenseModelService:
         embedding = self._encoder.encode([text], convert_to_numpy=True)  # (1, 384)
         probs = self._model.predict(embedding, verbose=0)[0]
         idx = int(np.argmax(probs))
+        logger.debug(f"predict_category: text={text!r}, probs={probs}, idx={idx}, categories={self._categories}")
         if self._categories and idx < len(self._categories):
             return self._categories[idx]
-        return str(idx)
+        # Если labels не загружены — пытаемся подтянуть из БД
+        row = self.model_repo.get_latest(self.cfg.name)
+        if row:
+            labels_path = os.path.join(row[0], "labels.txt")
+            if os.path.exists(labels_path):
+                with open(labels_path, encoding="utf-8") as f:
+                    self._categories = f.read().splitlines()
+                logger.warning("predict_category: _categories были None, загружены из labels.txt")
+                if idx < len(self._categories):
+                    return self._categories[idx]
+        logger.error(f"predict_category: не удалось определить категорию для idx={idx}, categories={self._categories}")
+        return "Неизвестная категория"
 
     def load_latest(self) -> bool:
         """Загружает последнюю версию модели из директории version_dir."""
@@ -114,6 +126,13 @@ class ExpenseModelService:
         if os.path.exists(labels_path):
             with open(labels_path, encoding="utf-8") as f:
                 self._categories = f.read().splitlines()
+            logger.info(f"Loaded model v{version} from {version_dir}, categories: {self._categories}")
+        else:
+            logger.error(
+                f"labels.txt NOT FOUND at {labels_path}! "
+                "predict_category будет возвращать индекс вместо названия. "
+                "Запустите train_and_save() заново."
+            )
 
         logger.info(f"Loaded model v{version} from {version_dir}")
         return True
@@ -128,7 +147,15 @@ class ExpenseModelService:
             logger.info(f"Загружаем SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}")
             self._encoder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
 
-        num_classes = len(self._categories) if self._categories else self._detect_num_classes()
+        # _categories должен быть заполнен в _sync_dataset; если нет — читаем из папок
+        if self._categories:
+            num_classes = len(self._categories)
+        else:
+            num_classes = self._detect_num_classes()
+            logger.warning(
+                f"_categories не заданы до обучения, num_classes определён как {num_classes} "
+                "по папкам train_dir. Убедитесь, что dataset_csv передан в train_and_save()."
+            )
 
         X_train, y_train, X_val, y_val, X_test, y_test = self._load_and_encode()
 

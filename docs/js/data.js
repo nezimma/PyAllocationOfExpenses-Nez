@@ -1,6 +1,6 @@
 // ─── CONFIG ──────────────────────────────────
 // Замените на реальный адрес вашего сервера при деплое
-const API_BASE = 'http://localhost:8080';
+const API_BASE = 'https://nezimma.github.io/PyAllocationOfExpenses-Nez/';
 
 // ─── MOCK DATA ───────────────────────────────
 const CATEGORIES = {
