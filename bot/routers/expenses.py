@@ -107,8 +107,9 @@ async def report(message: types.Message):
     by_category: dict[str, float] = {}
     for amount, _, created_at, category in rows:
         if created_at.month == now.month and created_at.year == now.year:
-            total += amount
-            by_category[category] = by_category.get(category, 0) + amount
+            amt = float(amount) if amount is not None else 0.0
+            total += amt
+            by_category[category] = by_category.get(category, 0) + amt
 
     summary = "\n".join(f"{cat}: {amt:.2f} BYN" for cat, amt in by_category.items())
     await message.answer(f"{summary}\nВсего потрачено: {total:.2f} BYN")

@@ -70,7 +70,7 @@ def main() -> None:
     print("[tunnel] Запускаю cloudflared...")
     try:
         proc = subprocess.Popen(
-            ["cloudflared", "tunnel", "--url", "http://localhost:8080"],
+            ["cloudflared", "tunnel", "--protocol", "http2", "--url", "http://localhost:8080"],
             stderr=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
         )
