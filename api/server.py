@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def _cors(response: web.Response) -> web.Response:
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, ngrok-skip-browser-warning"
     return response
 
 
