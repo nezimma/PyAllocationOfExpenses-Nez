@@ -1,6 +1,6 @@
 // ─── CONFIG ──────────────────────────────────
 // Замените на реальный адрес вашего сервера при деплое
-const API_BASE = 'https://clearing-scholarship-describe-batteries.trycloudflare.com';
+const API_BASE = 'https://mule-secluding-autism.ngrok-free.dev';
 
 // ─── MOCK DATA ───────────────────────────────
 const CATEGORIES = {
