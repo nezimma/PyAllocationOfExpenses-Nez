@@ -1,6 +1,6 @@
 // ─── CONFIG ──────────────────────────────────
 // Замените на реальный адрес вашего сервера при деплое
-const API_BASE = 'https://mills-gains-takes-electro.trycloudflare.com';
+const API_BASE = 'https://sticky--terms-hang.trycloudflare.com';
 
 // ─── MOCK DATA ───────────────────────────────
 const CATEGORIES = {
