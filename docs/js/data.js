@@ -1,6 +1,6 @@
 // ─── CONFIG ──────────────────────────────────
 // Замените на реальный адрес вашего сервера при деплое
-const API_BASE = 'http://localhost:8080';
+const API_BASE = 'https://mills-gains-takes-electro.trycloudflare.com';
 
 // ─── MOCK DATA ───────────────────────────────
 const CATEGORIES = {
