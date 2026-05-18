@@ -1,47 +1,60 @@
 #!/usr/bin/env python3
 """
-Запуск Cloudflare Tunnel + автообновление API_BASE в docs/js/data.js + git push.
+Запуск ngrok tunnel + автообновление API_BASE в docs/js/data.js + git push.
 
 Использование:
     python start_tunnel.py
 
 Требования:
-    cloudflared.exe должен быть в PATH или в папке проекта.
-    Скачать: https://github.com/cloudflare/cloudflared/releases/latest
+    ngrok.exe должен быть в PATH или в папке проекта.
+    Скачать: https://ngrok.com/download
+    Настроить: ngrok config add-authtoken ВАШ_ТОКЕН
 """
+import json
 import re
 import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 DATA_JS = Path(__file__).parent / "docs" / "js" / "data.js"
 API_BASE_RE = re.compile(r"(const API_BASE\s*=\s*')[^']*(';)")
-TUNNEL_URL_RE = re.compile(r"https://[a-z0-9\-]+\.trycloudflare\.com")
 
 _tunnel_url: str | None = None
 _url_found = threading.Event()
 
 
 def _read_output(proc: subprocess.Popen) -> None:
-    """Читает stdout+stderr cloudflared, ищет публичный URL."""
-    global _tunnel_url
-    for line in proc.stderr:
+    for line in proc.stdout:
         text = line.decode(errors="replace").strip()
-        print(f"[cloudflared] {text}", flush=True)
-        if not _url_found.is_set():
-            m = TUNNEL_URL_RE.search(text)
-            if m:
-                _tunnel_url = m.group(0)
-                _url_found.set()
+        if text:
+            print(f"[ngrok] {text}", flush=True)
+
+
+def _wait_for_url(timeout: int = 30) -> str | None:
+    """Опрашивает ngrok API до получения публичного URL."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen("http://localhost:4040/api/tunnels", timeout=2) as r:
+                data = json.loads(r.read())
+                for tunnel in data.get("tunnels", []):
+                    url = tunnel.get("public_url", "")
+                    if url.startswith("https://"):
+                        return url
+        except Exception:
+            pass
+        time.sleep(1)
+    return None
 
 
 def update_data_js(url: str) -> None:
     content = DATA_JS.read_text(encoding="utf-8")
     new_content = API_BASE_RE.sub(lambda m: m.group(1) + url + m.group(2), content)
     if new_content == content:
-        print(f"[tunnel] data.js уже содержит нужный URL, пропускаем запись.")
+        print("[tunnel] data.js уже содержит нужный URL, пропускаем запись.")
         return
     DATA_JS.write_text(new_content, encoding="utf-8")
     print(f"[tunnel] data.js обновлён → {url}")
@@ -57,7 +70,6 @@ def git_push() -> None:
     for cmd in cmds:
         result = subprocess.run(cmd, cwd=repo, capture_output=True, text=True)
         if result.returncode != 0:
-            # "nothing to commit" — не ошибка
             if "nothing to commit" in result.stdout + result.stderr:
                 print("[git] Нечего коммитить, пропускаем.")
                 return
@@ -67,18 +79,23 @@ def git_push() -> None:
 
 
 def main() -> None:
-    print("[tunnel] Запускаю cloudflared...")
+    print("[tunnel] Запускаю ngrok...")
+    ngrok_exe = "ngrok"
+    local_ngrok = Path(__file__).parent / "ngrok.exe"
+    if local_ngrok.exists():
+        ngrok_exe = str(local_ngrok)
+
     try:
         proc = subprocess.Popen(
-            ["cloudflared", "tunnel", "--protocol", "http2", "--url", "http://localhost:8080"],
-            stderr=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
+            [ngrok_exe, "http", "8080"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
     except FileNotFoundError:
         print(
-            "[tunnel] ОШИБКА: cloudflared не найден.\n"
-            "Скачайте cloudflared.exe и положите рядом с проектом или добавьте в PATH:\n"
-            "https://github.com/cloudflare/cloudflared/releases/latest",
+            "[tunnel] ОШИБКА: ngrok не найден.\n"
+            "Скачайте ngrok.exe: https://ngrok.com/download\n"
+            "Настройте токен: ngrok config add-authtoken ВАШ_ТОКЕН",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -86,14 +103,16 @@ def main() -> None:
     reader = threading.Thread(target=_read_output, args=(proc,), daemon=True)
     reader.start()
 
-    print("[tunnel] Жду URL от cloudflared (до 30 сек)...")
-    if not _url_found.wait(timeout=30):
+    print("[tunnel] Жду публичный URL от ngrok (до 30 сек)...")
+    url = _wait_for_url(timeout=30)
+
+    if not url:
         proc.terminate()
         print("[tunnel] ОШИБКА: URL не получен за 30 секунд.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\n[tunnel] Публичный URL: {_tunnel_url}\n")
-    update_data_js(_tunnel_url)
+    print(f"\n[tunnel] Публичный URL: {url}\n")
+    update_data_js(url)
     git_push()
 
     print("\n[tunnel] Туннель активен. Нажмите Ctrl+C для остановки.\n")

@@ -54,7 +54,9 @@ async function loadExpenses() {
     return;
   }
   try {
-    const resp = await fetch(`${API_BASE}/api/expenses/${userId}`);
+    const resp = await fetch(`${API_BASE}/api/expenses/${userId}`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+    });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     EXPENSES = await resp.json();
   } catch (e) {
