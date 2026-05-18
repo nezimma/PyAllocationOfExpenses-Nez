@@ -62,19 +62,19 @@ def update_data_js(url: str) -> None:
 
 def git_push() -> None:
     repo = Path(__file__).parent
-    stage_and_commit = [
-        ["git", "add", "docs/js/data.js"],
+
+    subprocess.run(["git", "add", "docs/js/data.js"], cwd=repo, capture_output=True)
+    result = subprocess.run(
         ["git", "commit", "-m", "chore: update API_BASE for tunnel session"],
-    ]
-    for cmd in stage_and_commit:
-        result = subprocess.run(cmd, cwd=repo, capture_output=True, text=True)
-        if result.returncode != 0:
-            if "nothing to commit" in result.stdout + result.stderr:
-                print("[git] Нечего коммитить, пропускаем.")
-                return
-            print(f"[git] Ошибка при {' '.join(cmd)}:\n{result.stderr}", file=sys.stderr)
-            return
-        print(f"[git] {' '.join(cmd)} — OK")
+        cwd=repo, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        if "nothing to commit" in result.stdout + result.stderr:
+            print("[git] Нечего коммитить, пушим текущее состояние.")
+        else:
+            print(f"[git] Ошибка commit:\n{result.stderr}", file=sys.stderr)
+    else:
+        print("[git] commit — OK")
 
     for remote in ("origin", "sourcecraft"):
         cmd = ["git", "push", remote, "main"]
