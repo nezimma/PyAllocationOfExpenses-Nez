@@ -17,6 +17,41 @@ STOP_CHARS = list(',.*-–()[]{}!&"\\#№:;—«»?')
 SENTENCE_TRANSFORMER_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 EMBEDDING_DIM = 384  # выход paraphrase-multilingual-MiniLM-L12-v2
 
+# Keyword-fallback: если слово явно указывает на категорию — не идём в ML.
+# Ключи — название категории как в labels.txt / CATEGORY_FOLDER_MAP.
+_KEYWORD_RULES: list[tuple[str, list[str]]] = [
+    ("Транспорт", [
+        "такси", "самокат", "маршрутк", "автобус", "троллейбус", "трамвай",
+        "метро", "поездк", "электричк", "поезд", "заправ", "бензин",
+        "каршер", "парковк", "велосипед", "мопед", "скутер", "uber", "яндекс.такс",
+        "велик", "прокатился", "прокатилась", "на машине", "на авто",
+    ]),
+    ("Ресторан и еда", [
+        "ресторан", "кафе", "столовая", "бургер", "пицца", "суши", "роллы",
+        "еврооопт", "евроопт", "перекрёсток", "перекресток", "магазин",
+        "продукты", "пятёрочка", "пятерочка", "макдональдс", "kfc", "бк",
+        "тьерри", "beermania", "кофе", "круассан", "обед", "ужин", "завтрак",
+        "поел", "поела", "покушал", "покушала", "поперекус", "перекусил",
+        "зашёл в магазин", "зашел в магазин", "взял еды", "взял перекус",
+        "продуктов", "продуктов на", "энергетик", "напиток",
+    ]),
+    ("Жилье", [
+        "аренд", "коммунал", "квартплат",
+        "ипотек", "электричеств", "отопление", "водоснабжени", "квартир",
+        "съёмн", "съемн",
+    ]),
+]
+
+
+def _keyword_category(text: str) -> str | None:
+    """Возвращает категорию по ключевым словам или None если не нашёл."""
+    lower = text.lower()
+    for category, keywords in _KEYWORD_RULES:
+        if any(kw in lower for kw in keywords):
+            return category
+    return None
+
+
 # Маппинг: название категории из CSV → имя папки (латиница, без пробелов)
 CATEGORY_FOLDER_MAP = {
     "Ресторан и еда": "Restaurants_food",
@@ -85,6 +120,10 @@ class ExpenseModelService:
     def predict_category(self, text: str) -> str:
         if self._model is None or self._encoder is None:
             raise RuntimeError("Model is not loaded. Call load_latest() first.")
+        kw = _keyword_category(text)
+        if kw:
+            logger.debug(f"predict_category: keyword match → {kw!r} for {text!r}")
+            return kw
         embedding = self._encoder.encode([text], convert_to_numpy=True)  # (1, 384)
         probs = self._model.predict(embedding, verbose=0)[0]
         idx = int(np.argmax(probs))

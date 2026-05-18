@@ -20,12 +20,50 @@ _SLANG_MAP = {
 }
 
 _STOP_CHARS = ',.*-–()[]{}!&"\\#№:;—«»?'
-_SEP_RE = re.compile(r'\s+(?:и|а также|плюс|потом|ещё|еще|да)\s+')
+
+# Глаголы, с которых обычно начинается описание нового расхода
+_ACTION_VERBS = (
+    r'взял|взяла|купил|купила|приобрел|приобрела|заказал|заказала'
+    r'|поехал|поехала|прокатился|прокатилась|скатался|скаталась'
+    r'|вызвал|вызвала|оплатил|оплатила|заплатил|заплатила'
+    r'|зашёл|зашел|зашла|сходил|сходила|сходил|зашла'
+    r'|арендовал|арендовала|заправил|заправила'
+    r'|посидел|посидела|побывал|побывала'
+)
+
+# Разделители между расходами (применяются к GAP-у между двумя суммами):
+#   1. граница предложения: ". " / "! " / "? "
+#   2. запятая: ", "
+#   3. союзы: "и", "а также", "плюс", "потом", "ещё", "да"
+#   4. глагол нового действия без пунктуации: " купил", " поехал" и т.д.
+_SEP_RE = re.compile(
+    r'[.!?]\s+'
+    r'|,\s+'
+    r'|\s+(?:и|а также|плюс|потом|ещё|еще|да)\s+'
+    rf'|\s+(?:{_ACTION_VERBS})\s+',
+    re.IGNORECASE,
+)
+
+# "два шестьдесят девять" → "два рубля шестьдесят девять копейки" (разговорный формат цены)
+_ONES = r'(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать)'
+_TENS = r'(?:двадцать|тридцать|сорок|пятьдесят|шестьдесят|семьдесят|восемьдесят|девяносто)'
+# Два паттерна без optional-группы, чтобы избежать бэктрекинга через lookahead:
+# 1) X десятки единицы  (три девяносто девять)
+# 2) X десятки          (пять двадцать), только если дальше не стоит ещё одно числительное
+_KOPECK_RE_FULL = re.compile(rf'\b({_ONES})\s+({_TENS}\s+{_ONES})(?!\s*рубл)', re.IGNORECASE)
+_KOPECK_RE_TENS = re.compile(rf'\b({_ONES})\s+({_TENS})(?!\s*(?:рубл|{_ONES}))', re.IGNORECASE)
 
 
 def _normalize_slang(text: str) -> str:
     for slang, normal in _SLANG_MAP.items():
         text = re.sub(rf"\b{slang}\b", normal, text)
+    return text
+
+
+def _normalize_kopecks(text: str) -> str:
+    """'два шестьдесят девять' → 'два рубля шестьдесят девять копейки'."""
+    text = _KOPECK_RE_FULL.sub(lambda m: f"{m.group(1)} рубля {m.group(2)} копейки", text)
+    text = _KOPECK_RE_TENS.sub(lambda m: f"{m.group(1)} рубля {m.group(2)} копейки", text)
     return text
 
 
@@ -48,6 +86,7 @@ def split_text_and_amount(text: str) -> tuple[str, float | None, str | None]:
 
     text = text.lower().strip()
     text = _normalize_slang(text)
+    text = _normalize_kopecks(text)
     matches = list(extractor(text))
 
     if not matches:
@@ -85,6 +124,7 @@ def split_multi_expenses(text: str) -> list[tuple[str, float | None, str | None]
 
     text = text.lower().strip()
     text = _normalize_slang(text)
+    text = _normalize_kopecks(text)
     matches = list(extractor(text))
 
     if not matches:
