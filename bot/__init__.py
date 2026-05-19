@@ -6,6 +6,7 @@ from aiogram import Bot, Dispatcher
 from config import config
 from bot.routers import auth, expenses, reminders
 from api.server import create_app
+from services.notification_scheduler import run_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ async def run():
     api_runner = await _start_api()
     try:
         logger.info("Bot started")
+        asyncio.create_task(run_scheduler(bot))
         await dp.start_polling(bot)
     finally:
         await api_runner.cleanup()
