@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from bot.states import BotState
 from bot.keyboards import reminders_menu, main_menu, reminder_actions_kb, habit_toggle_kb
 from database import reminders as reminder_repo
+from services.notification_scheduler import _calc_next_fire
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -65,7 +66,14 @@ async def on_reminder_time(message: types.Message, state: FSMContext):
     time_str = message.text
     name = f"{time_str} {data['date']}"
     reminder_repo.create_recurrence_template(name, data["date"].lower(), time_str)
-    reminder_repo.create_reminder(name, data["text"], message.from_user.id)
+    reminder_id = reminder_repo.create_reminder(name, data["text"], message.from_user.id)
+
+    from datetime import time as dtime
+    h, m = map(int, time_str.split(":"))
+    next_fire = _calc_next_fire(data["date"].lower(), dtime(h, m), is_habit=False)
+    if next_fire:
+        reminder_repo.set_next_fire_at(reminder_id, next_fire)
+
     await message.answer("✅ Напоминание создано")
     await state.clear()
 
@@ -121,8 +129,19 @@ async def on_create_habit(cb: types.CallbackQuery, state: FSMContext):
 
 @router.message(BotState.wait_habit_frequency)
 async def on_habit_frequency(message: types.Message, state: FSMContext):
+    from datetime import time as dtime
     data = await state.get_data()
-    reminder_repo.create_habit(data["number_reminder"], int(message.text))
+    reminder_id = data["number_reminder"]
+    frequency = int(message.text)
+    reminder_repo.create_habit(reminder_id, frequency)
+
+    row = reminder_repo.get_reminder_time(reminder_id)
+    if row:
+        interval, time_val = row
+        next_fire = _calc_next_fire(str(interval), time_val, is_habit=True, frequency=frequency)
+        if next_fire:
+            reminder_repo.set_next_fire_at(reminder_id, next_fire)
+
     await message.answer("✅ Привычка создана")
     await state.clear()
 

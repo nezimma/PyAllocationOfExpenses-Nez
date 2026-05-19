@@ -1,39 +1,68 @@
 // ─── REMINDERS MODULE ─────────────────────────
 
-// ── Data store ──
-let REMINDERS = [
-  {
-    id: 1, type: 'reminder', title: 'Записаться к врачу',
-    date: '2025-04-10', time: '10:00', active: true,
-    checkins: []
-  },
-  {
-    id: 2, type: 'habit', title: 'Пить 2 литра воды',
-    date: '2025-03-20', time: '08:00', interval: 1, active: true,
-    checkins: ['2025-03-20','2025-03-21','2025-03-22','2025-03-23']
-  },
-  {
-    id: 3, type: 'goal', title: 'Читать 30 минут каждый день',
-    date: '2025-03-01', time: '21:00', interval: 1, endDate: '2025-04-30', active: true,
-    checkins: ['2025-03-01','2025-03-02','2025-03-03','2025-03-05','2025-03-07',
-               '2025-03-08','2025-03-09','2025-03-10','2025-03-12','2025-03-14',
-               '2025-03-15','2025-03-16','2025-03-17','2025-03-18','2025-03-19',
-               '2025-03-20','2025-03-21','2025-03-22','2025-03-23']
-  },
-  {
-    id: 4, type: 'habit', title: 'Утренняя зарядка',
-    date: '2025-03-15', time: '07:00', interval: 1, active: false,
-    checkins: ['2025-03-15','2025-03-16','2025-03-17']
-  },
-  {
-    id: 5, type: 'goal', title: 'Учить английские слова',
-    date: '2025-03-10', time: '19:00', interval: 2, endDate: '2025-05-10', active: true,
-    checkins: ['2025-03-10','2025-03-12','2025-03-14','2025-03-16','2025-03-18','2025-03-20','2025-03-22']
-  }
-];
+// ── API helpers ──
+function getTelegramId() {
+  return window.Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
+}
 
-let nextId = 10;
+const _hdrs = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' };
+
+async function apiGetReminders(telegramId) {
+  const r = await fetch(`${API_BASE}/api/reminders/${telegramId}`, { headers: _hdrs });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function apiCreateReminder(telegramId, payload) {
+  const r = await fetch(`${API_BASE}/api/reminders/${telegramId}`, {
+    method: 'POST', headers: _hdrs, body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function apiUpdateReminder(reminderId, payload) {
+  const r = await fetch(`${API_BASE}/api/reminder/${reminderId}`, {
+    method: 'PUT', headers: _hdrs, body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
+
+async function apiDeleteReminder(reminderId) {
+  const r = await fetch(`${API_BASE}/api/reminder/${reminderId}`, {
+    method: 'DELETE', headers: _hdrs,
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+}
+
+async function apiToggleReminder(reminderId) {
+  const r = await fetch(`${API_BASE}/api/reminders/${reminderId}/toggle`, {
+    method: 'PATCH', headers: _hdrs,
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── Data store ──
+let REMINDERS = [];
 let remState = { typeFilter: 'all', editingId: null };
+
+// ── Load from API ──
+async function loadReminders() {
+  const telegramId = getTelegramId();
+  if (!telegramId) {
+    REMINDERS = [];
+    renderReminders();
+    return;
+  }
+  try {
+    REMINDERS = await apiGetReminders(telegramId);
+  } catch (e) {
+    console.warn('Reminders API unavailable:', e);
+    REMINDERS = [];
+  }
+  renderReminders();
+}
 
 // ── Page navigation ──
 const expensesPage   = document.getElementById('expensesPage');
@@ -57,7 +86,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
       remindersPage.classList.remove('hidden');
       expensePeriodControls.style.display = 'none';
       headerTitle.textContent = 'Напоминания';
-      renderReminders();
+      loadReminders();
     }
   });
 });
@@ -97,7 +126,6 @@ function renderReminders() {
 
   list.innerHTML = filtered.map((r, i) => buildCard(r, i)).join('');
 
-  // Events
   list.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -216,19 +244,32 @@ function calcGoalProgress(r) {
 }
 
 // ── Toggle active ──
-function toggleActive(id) {
+async function toggleActive(id) {
   const r = REMINDERS.find(r => r.id === id);
-  if (r) r.active = !r.active;
+  if (!r) return;
+  if (r.type !== 'habit') return; // только привычки имеют active в БД
+
+  try {
+    const res = await apiToggleReminder(id);
+    r.active = res.active;
+  } catch (e) {
+    console.error('Toggle failed:', e);
+  }
   renderReminders();
 }
 
 // ── Delete ──
-function deleteReminder(id) {
-  REMINDERS = REMINDERS.filter(r => r.id !== id);
+async function deleteReminder(id) {
+  try {
+    await apiDeleteReminder(id);
+    REMINDERS = REMINDERS.filter(r => r.id !== id);
+  } catch (e) {
+    console.error('Delete failed:', e);
+  }
   renderReminders();
 }
 
-// ── Create modal ──
+// ── Create/Edit modal ──
 const reminderModalOverlay = document.getElementById('reminderModalOverlay');
 let currentStep = 1;
 let selectedRType = 'reminder';
@@ -239,7 +280,6 @@ function openCreateReminder() {
   selectedRType = 'reminder';
   document.getElementById('reminderModalTitle').textContent = 'Новое напоминание';
 
-  // Reset form
   document.getElementById('remTitle').value = '';
   document.getElementById('remDate').value  = '';
   document.getElementById('remTime').value  = '';
@@ -249,7 +289,6 @@ function openCreateReminder() {
   document.getElementById('remStep2').classList.add('hidden');
   setModalStep(1);
 
-  // Reset type cards
   document.querySelectorAll('.rem-type-card').forEach(c => c.classList.remove('active'));
   document.querySelector('[data-rtype="reminder"]').classList.add('active');
   document.getElementById('remExtraFields').classList.add('hidden');
@@ -300,7 +339,6 @@ function setModalStep(step) {
 document.getElementById('reminderModalClose').addEventListener('click', closeReminderModal);
 reminderModalOverlay.addEventListener('click', e => { if (e.target === reminderModalOverlay) closeReminderModal(); });
 
-// Step 1 → 2
 document.getElementById('remStep1Next').addEventListener('click', () => {
   const title = document.getElementById('remTitle').value.trim();
   const date  = document.getElementById('remDate').value;
@@ -313,20 +351,17 @@ document.getElementById('remStep1Next').addEventListener('click', () => {
   document.getElementById('remStep2').classList.remove('hidden');
   setModalStep(2);
 
-  // Pre-select current type if editing
   document.querySelectorAll('.rem-type-card').forEach(c => c.classList.remove('active'));
   document.querySelector(`[data-rtype="${selectedRType}"]`).classList.add('active');
   updateExtraFields(selectedRType);
 });
 
-// Step 2 ← back
 document.getElementById('remStep2Back').addEventListener('click', () => {
   document.getElementById('remStep2').classList.add('hidden');
   document.getElementById('remStep1').classList.remove('hidden');
   setModalStep(1);
 });
 
-// Type card selection
 document.querySelectorAll('.rem-type-card').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.rem-type-card').forEach(c => c.classList.remove('active'));
@@ -337,7 +372,7 @@ document.querySelectorAll('.rem-type-card').forEach(card => {
 });
 
 function updateExtraFields(type) {
-  const extra   = document.getElementById('remExtraFields');
+  const extra    = document.getElementById('remExtraFields');
   const endField = document.getElementById('remEndDateField');
   if (type === 'reminder') {
     extra.classList.add('hidden');
@@ -355,13 +390,13 @@ function shakeField(id) {
   setTimeout(() => el.style.borderColor = '', 1500);
 }
 
-// Save
-document.getElementById('remSave').addEventListener('click', () => {
+// ── Save ──
+document.getElementById('remSave').addEventListener('click', async () => {
   const title    = document.getElementById('remTitle').value.trim();
   const date     = document.getElementById('remDate').value;
   const time     = document.getElementById('remTime').value;
   const interval = +document.getElementById('remInterval').value || 1;
-  const endDate  = document.getElementById('remEndDate').value;
+  const endDate  = document.getElementById('remEndDate').value || null;
 
   if (!title || !date || !time) return;
   if ((selectedRType === 'habit' || selectedRType === 'goal') && !interval) {
@@ -371,24 +406,33 @@ document.getElementById('remSave').addEventListener('click', () => {
     shakeField('remEndDate'); return;
   }
 
-  if (remState.editingId) {
-    const r = REMINDERS.find(r => r.id === remState.editingId);
-    if (r) {
-      r.title = title; r.date = date; r.time = time;
-      r.type = selectedRType; r.interval = interval;
-      r.endDate = selectedRType === 'goal' ? endDate : undefined;
-    }
-  } else {
-    REMINDERS.push({
-      id: nextId++, type: selectedRType, title, date, time,
-      interval: selectedRType !== 'reminder' ? interval : undefined,
-      endDate:  selectedRType === 'goal' ? endDate : undefined,
-      active: true, checkins: []
-    });
-  }
+  const payload = {
+    title, date, time, type: selectedRType,
+    interval: selectedRType !== 'reminder' ? interval : 1,
+    endDate:  selectedRType === 'goal' ? endDate : null,
+  };
 
-  closeReminderModal();
-  renderReminders();
+  const saveBtn = document.getElementById('remSave');
+  saveBtn.disabled = true;
+
+  try {
+    if (remState.editingId) {
+      await apiUpdateReminder(remState.editingId, payload);
+      const idx = REMINDERS.findIndex(r => r.id === remState.editingId);
+      if (idx !== -1) REMINDERS[idx] = { ...REMINDERS[idx], ...payload, id: remState.editingId };
+    } else {
+      const telegramId = getTelegramId();
+      if (!telegramId) { console.error('No telegram user id'); return; }
+      const res = await apiCreateReminder(telegramId, payload);
+      REMINDERS.push({ id: res.id, active: true, checkins: [], ...payload });
+    }
+    closeReminderModal();
+    renderReminders();
+  } catch (e) {
+    console.error('Save reminder failed:', e);
+  } finally {
+    saveBtn.disabled = false;
+  }
 });
 
 // ── Goal detail modal ──
@@ -447,7 +491,7 @@ function openGoalDetail(id) {
     const today = new Date().toISOString().slice(0, 10);
     if (!r.checkins.includes(today)) {
       r.checkins.push(today);
-      openGoalDetail(id); // re-render
+      openGoalDetail(id);
       renderReminders();
     } else {
       document.getElementById('goalCheckinBtn').textContent = '✓ Уже отмечено сегодня';
