@@ -15,6 +15,9 @@ _CATEGORY_TO_KEY: dict[str, str] = {
     "Одежда":          "clothes",
     "Быт":             "household",
     "Техника":         "tech",
+    "Образование":     "education",
+    "Развлечения":     "entertainment",
+    "Здоровье":        "health",
 }
 
 
