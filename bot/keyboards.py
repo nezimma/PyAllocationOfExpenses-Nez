@@ -38,6 +38,17 @@ def reminders_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def location_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📍 Поделиться геолокацией", request_location=True)],
+            [KeyboardButton(text="Пропустить")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
 def reminder_actions_kb(reminder_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [

@@ -63,6 +63,18 @@ def update_data_js(url: str) -> None:
 def git_push() -> None:
     repo = Path(__file__).parent
 
+    # Подтягиваем origin перед пушем, чтобы не было rejected
+    subprocess.run(["git", "stash"], cwd=repo, capture_output=True)
+    result = subprocess.run(
+        ["git", "pull", "--rebase", "origin", "main"],
+        cwd=repo, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"[git] Ошибка pull:\n{result.stderr}", file=sys.stderr)
+    else:
+        print("[git] pull — OK")
+    subprocess.run(["git", "stash", "pop"], cwd=repo, capture_output=True)
+
     subprocess.run(["git", "add", "docs/js/data.js"], cwd=repo, capture_output=True)
     result = subprocess.run(
         ["git", "commit", "-m", "chore: update API_BASE for tunnel session"],

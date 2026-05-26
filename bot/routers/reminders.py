@@ -1,14 +1,13 @@
-# bot/routers/reminders.py — создание напоминаний и управление привычками
 import logging
-from datetime import date
+from datetime import date, datetime, time as dtime
 
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 
 from bot.states import BotState
 from bot.keyboards import reminders_menu, main_menu, reminder_actions_kb, habit_toggle_kb
-from database import reminders as reminder_repo
-from services.notification_scheduler import _calc_next_fire
+import database
+from services.scheduler_utils import calc_next_fire, get_tz
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -38,43 +37,99 @@ async def start_reminder(message: types.Message, state: FSMContext):
 
 @router.message(BotState.callback_text_state)
 async def on_reminder_text(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте текст напоминания.")
+        return
     if message.text.lower() in _MENU_COMMANDS:
         await state.clear()
         return await menu_reminders(message)
     await state.update_data(text=message.text)
-    await message.answer("Введите дату в формате 2025.01.01")
+    await message.answer(
+        "📅 Введите дату напоминания\n"
+        "Формат: ГГГГ.ММ.ДД\n"
+        "Пример: 2026.12.31  (сначала год, потом месяц, потом день)"
+    )
     await state.set_state(BotState.callback_date_state)
 
 
 @router.message(BotState.callback_date_state)
 async def on_reminder_date(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте дату текстом.")
+        return
     if message.text.lower() in _MENU_COMMANDS:
         await state.clear()
         return await menu_reminders(message)
-    await state.update_data(date=message.text)
-    await message.answer("Введите время в формате 12:00")
+
+    try:
+        parsed = datetime.strptime(message.text.strip(), "%Y.%m.%d")
+        if parsed.date() < date.today():
+            await message.answer(
+                "⚠️ Эта дата уже прошла. Введите дату в будущем\n"
+                "Формат: ГГГГ.ММ.ДД  (например: 2026.12.31)"
+            )
+            return
+    except ValueError:
+        await message.answer(
+            "❌ Неверный формат даты. Попробуйте ещё раз\n"
+            "Формат: ГГГГ.ММ.ДД\n"
+            "Пример: 2026.12.31  (сначала год, потом месяц, потом день)"
+        )
+        return
+
+    await state.update_data(date=message.text.strip())
+    await message.answer(
+        "🕐 Введите время напоминания\n"
+        "Формат: ЧЧ:ММ\n"
+        "Пример: 09:00 или 21:30"
+    )
     await state.set_state(BotState.callback_time_state)
 
 
 @router.message(BotState.callback_time_state)
 async def on_reminder_time(message: types.Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте время текстом.")
+        return
     if message.text.lower() in _MENU_COMMANDS:
         await state.clear()
         return await menu_reminders(message)
 
+    try:
+        h, m = map(int, message.text.strip().split(":"))
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            raise ValueError
+        fire_time = dtime(h, m)
+    except (ValueError, AttributeError):
+        await message.answer(
+            "❌ Неверный формат времени. Попробуйте ещё раз\n"
+            "Формат: ЧЧ:ММ\n"
+            "Пример: 09:00 или 21:30"
+        )
+        return
+
     data = await state.get_data()
-    time_str = message.text
-    name = f"{time_str} {data['date']}"
-    reminder_repo.create_recurrence_template(name, data["date"].lower(), time_str)
-    reminder_id = reminder_repo.create_reminder(name, data["text"], message.from_user.id)
+    date_str = data["date"]
+    time_str = message.text.strip()
+    name = f"{time_str} {date_str}"
 
-    from datetime import time as dtime
-    h, m = map(int, time_str.split(":"))
-    next_fire = _calc_next_fire(data["date"].lower(), dtime(h, m), is_habit=False)
-    if next_fire:
-        reminder_repo.set_next_fire_at(reminder_id, next_fire)
+    try:
+        await database.reminders.create_recurrence_template(name, 0, time_str)
+        reminder_id = await database.reminders.create_reminder(name, data["text"], message.from_user.id)
 
-    await message.answer("✅ Напоминание создано")
+        tz = get_tz(await database.users.get_timezone(message.from_user.id))
+        next_fire = calc_next_fire(date_str, fire_time, is_habit=False, tz=tz)
+        if next_fire:
+            await database.reminders.set_next_fire_at(reminder_id, next_fire)
+
+        await message.answer(
+            f"✅ Напоминание создано!\n"
+            f"📅 {date_str.replace('.', '/')}  🕐 {time_str}"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка создания напоминания: {e}")
+        await message.answer("❌ Не удалось создать напоминание. Попробуйте ещё раз.")
+
     await state.clear()
 
 
@@ -82,13 +137,13 @@ async def on_reminder_time(message: types.Message, state: FSMContext):
 
 @router.message(F.text.lower() == "управлять напоминаниями")
 async def manage_reminders(message: types.Message):
-    rows = reminder_repo.get_reminders(message.from_user.id)
+    rows = await database.reminders.get_reminders(message.from_user.id)
     if not rows:
         await message.answer("У вас нет напоминаний.")
         return
 
     for row in rows:
-        text, is_habit, is_goal, interval, time, reminder_id, freq, start_date, active, habit_id = row
+        text, is_habit, is_goal, next_fire_at, time, reminder_id, freq, start_date, active, habit_id = row
         if habit_id is not None:
             delta = date.today() - start_date
             days_left = delta.days % int(freq)
@@ -102,9 +157,10 @@ async def manage_reminders(message: types.Message):
                 reply_markup=habit_toggle_kb(habit_id),
             )
         else:
+            date_display = next_fire_at.strftime("%d.%m.%Y") if next_fire_at else "—"
             await message.answer(
                 f'🔔 Напоминание «{text.capitalize()}»\n'
-                f'Дата: {interval}\n'
+                f'Дата: {date_display}\n'
                 f'Время: {str(time)[:5]}',
                 reply_markup=reminder_actions_kb(reminder_id),
             )
@@ -115,7 +171,7 @@ async def manage_reminders(message: types.Message):
 @router.callback_query(lambda c: c.data.startswith("delete_"))
 async def on_delete(cb: types.CallbackQuery):
     reminder_id = int(cb.data.split("_")[1])
-    reminder_repo.delete_reminder(reminder_id)
+    await database.reminders.delete_reminder(reminder_id)
     await cb.message.delete()
 
 
@@ -129,18 +185,31 @@ async def on_create_habit(cb: types.CallbackQuery, state: FSMContext):
 
 @router.message(BotState.wait_habit_frequency)
 async def on_habit_frequency(message: types.Message, state: FSMContext):
-    from datetime import time as dtime
+    if not message.text:
+        await message.answer("Пожалуйста, отправьте число дней текстом.")
+        return
+    try:
+        frequency = int(message.text.strip())
+        if frequency <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer(
+            "❌ Введите целое число дней — например, 1, 7 или 30\n"
+            "Попробуйте ещё раз:"
+        )
+        return
+
     data = await state.get_data()
     reminder_id = data["number_reminder"]
-    frequency = int(message.text)
-    reminder_repo.create_habit(reminder_id, frequency)
+    await database.reminders.create_habit(reminder_id, frequency)
 
-    row = reminder_repo.get_reminder_time(reminder_id)
+    row = await database.reminders.get_reminder_time(reminder_id)
     if row:
         interval, time_val = row
-        next_fire = _calc_next_fire(str(interval), time_val, is_habit=True, frequency=frequency)
+        tz = get_tz(await database.users.get_timezone(message.from_user.id))
+        next_fire = calc_next_fire(str(interval), time_val, is_habit=True, frequency=frequency, tz=tz)
         if next_fire:
-            reminder_repo.set_next_fire_at(reminder_id, next_fire)
+            await database.reminders.set_next_fire_at(reminder_id, next_fire)
 
     await message.answer("✅ Привычка создана")
     await state.clear()
@@ -149,8 +218,7 @@ async def on_habit_frequency(message: types.Message, state: FSMContext):
 @router.callback_query(lambda c: c.data.startswith("activate_"))
 async def on_toggle_habit(cb: types.CallbackQuery):
     habit_id = int(cb.data.split("_")[1])
-    row = reminder_repo.toggle_habit(habit_id)
-    # row: habit_id, reminder_id, frequency, start_date, active, text, time
+    row = await database.reminders.toggle_habit(habit_id)
     delta = date.today() - row[3]
     days_left = delta.days % int(row[2])
     next_str = f"{days_left} дн." if days_left != 0 else "Сегодня"

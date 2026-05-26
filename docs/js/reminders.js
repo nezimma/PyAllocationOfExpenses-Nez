@@ -43,6 +43,15 @@ async function apiToggleReminder(reminderId) {
   return r.json();
 }
 
+async function apiCheckin(reminderId, dateStr) {
+  const r = await fetch(`${API_BASE}/api/reminders/${reminderId}/checkin`, {
+    method: 'POST', headers: _hdrs,
+    body: JSON.stringify({ date: dateStr }),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
 // ── Data store ──
 let REMINDERS = [];
 let remState = { typeFilter: 'all', editingId: null };
@@ -487,15 +496,23 @@ function openGoalDetail(id) {
     <button class="goal-checkin-btn" id="goalCheckinBtn">✅ Отметить выполнение сегодня</button>
   `;
 
-  document.getElementById('goalCheckinBtn').addEventListener('click', () => {
+  document.getElementById('goalCheckinBtn').addEventListener('click', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    if (!r.checkins.includes(today)) {
+    const btn = document.getElementById('goalCheckinBtn');
+    if (r.checkins.includes(today)) {
+      btn.textContent = '✓ Уже отмечено сегодня';
+      btn.style.opacity = '0.5';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await apiCheckin(r.id, today);
       r.checkins.push(today);
       openGoalDetail(id);
       renderReminders();
-    } else {
-      document.getElementById('goalCheckinBtn').textContent = '✓ Уже отмечено сегодня';
-      document.getElementById('goalCheckinBtn').style.opacity = '0.5';
+    } catch (e) {
+      console.error('Checkin failed:', e);
+      btn.disabled = false;
     }
   });
 

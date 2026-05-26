@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ML datasets (большие CSV с обучающими данными)
+DatasetK.csv
+train_dir/
+test_dir/

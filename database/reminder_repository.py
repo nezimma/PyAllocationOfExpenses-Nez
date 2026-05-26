@@ -1,272 +1,325 @@
-# database/reminder_repository.py — операции с напоминаниями и привычками
 import logging
-from datetime import date, datetime
-from database.db import PostgresConnection
+from datetime import date, datetime, time as dtime
+import asyncpg
 
 logger = logging.getLogger(__name__)
 
 
+def _parse_time(value) -> dtime:
+    """'09:00' или '9:00' или уже datetime.time → datetime.time."""
+    if isinstance(value, dtime):
+        return value
+    h, m = map(int, str(value).strip().split(":"))
+    return dtime(h, m)
+
+
+def _parse_date(value) -> date:
+    """'2026-05-21' или '2026.05.21' или уже datetime.date → datetime.date."""
+    if isinstance(value, date):
+        return value
+    s = str(value).strip().replace(".", "-")
+    return datetime.strptime(s, "%Y-%m-%d").date()
+
+
 class ReminderRepository:
-    def __init__(self, db: PostgresConnection):
-        self.db = db
+    def __init__(self, pool: asyncpg.Pool):
+        self.pool = pool
 
-    def create_recurrence_template(self, name: str, interval: str, time: str):
-        self.db.execute(
-            "INSERT INTO recurrence_templates (name, interval, time) VALUES (%s, %s, %s)",
-            (name, interval, time)
-        )
-        self.db.commit()
-
-    def create_reminder(self, name: str, text: str, telegram_id: int) -> int:
-        self.db.execute(
-            "SELECT recurrence_template_id FROM recurrence_templates "
-            "WHERE name = %s ORDER BY recurrence_template_id DESC LIMIT 1",
-            (name,)
-        )
-        template_id = self.db.fetchone()
-
-        self.db.execute("SELECT user_id FROM users WHERE telegram_id = %s", (telegram_id,))
-        user_id = self.db.fetchone()
-
-        self.db.execute(
-            "INSERT INTO reminders (user_id, recurrence_template_id, text) VALUES (%s, %s, %s) RETURNING reminder_id",
-            (user_id, template_id, text)
-        )
-        reminder_id = self.db.fetchone()[0]
-        self.db.commit()
-        return reminder_id
-
-    def set_next_fire_at(self, reminder_id: int, next_fire_at: datetime):
-        self.db.execute(
-            "UPDATE reminders SET next_fire_at = %s WHERE reminder_id = %s",
-            (next_fire_at, reminder_id)
-        )
-        self.db.commit()
-
-    def get_reminders_without_next_fire(self) -> list[tuple]:
-        """Возвращает напоминания без рассчитанного next_fire_at для инициализации при старте."""
-        self.db.execute(
-            """SELECT r.reminder_id, r.is_habit, rt.interval, rt.time, h.frequency
-               FROM reminders r
-               JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
-               LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
-               WHERE r.next_fire_at IS NULL""",
-        )
-        return self.db.fetchall()
-
-    def get_reminder_time(self, reminder_id: int):
-        """Возвращает (interval, time) из шаблона для нужного напоминания."""
-        self.db.execute(
-            """SELECT rt.interval, rt.time FROM reminders r
-               JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
-               WHERE r.reminder_id = %s""",
-            (reminder_id,)
-        )
-        return self.db.fetchone()
-
-    def get_due_reminders(self) -> list[tuple]:
-        """Возвращает напоминания, время которых наступило."""
-        self.db.execute(
-            """SELECT u.telegram_id, r.text, r.reminder_id, r.is_habit, h.frequency
-               FROM reminders r
-               JOIN users u ON r.user_id = u.user_id
-               LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
-               WHERE r.next_fire_at <= NOW()
-                 AND r.next_fire_at IS NOT NULL
-                 AND (r.is_habit = false OR h.active = true)"""
-        )
-        return self.db.fetchall()
-
-    def advance_next_fire(self, reminder_id: int, is_habit: bool, frequency: int = None):
-        """После отправки: для привычки сдвигаем на следующий период, для разового — сбрасываем."""
-        if is_habit and frequency:
-            self.db.execute(
-                "UPDATE reminders SET next_fire_at = next_fire_at + (%s || ' days')::INTERVAL WHERE reminder_id = %s",
-                (str(frequency), reminder_id)
+    async def create_recurrence_template(self, name: str, interval: int, time):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO recurrence_templates (name, interval, time) VALUES ($1, $2, $3)",
+                name, interval, _parse_time(time),
             )
-        else:
-            self.db.execute(
-                "UPDATE reminders SET next_fire_at = NULL WHERE reminder_id = %s",
-                (reminder_id,)
+
+    async def create_reminder(self, name: str, text: str, telegram_id: int) -> int:
+        async with self.pool.acquire() as conn:
+            template_id = await conn.fetchval(
+                "SELECT recurrence_template_id FROM recurrence_templates "
+                "WHERE name = $1 ORDER BY recurrence_template_id DESC LIMIT 1",
+                name,
             )
-        self.db.commit()
+            user_id = await conn.fetchval(
+                "SELECT user_id FROM users WHERE telegram_id = $1", telegram_id
+            )
+            return await conn.fetchval(
+                "INSERT INTO reminders (user_id, recurrence_template_id, text) VALUES ($1, $2, $3) RETURNING reminder_id",
+                user_id, template_id, text,
+            )
 
-    def get_reminders(self, telegram_id: int) -> list[tuple]:
-        self.db.execute(
-            """SELECT r.text, r.is_habit, r.is_goal, rt.interval, rt.time,
-                      r.reminder_id, h.frequency, h.start_date, h.active, h.habit_id
-               FROM reminders r
-               JOIN users u ON r.user_id = u.user_id
-               JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
-               LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
-               WHERE u.telegram_id = %s
-               ORDER BY r.reminder_id ASC""",
-            (telegram_id,)
-        )
-        return self.db.fetchall()
+    async def set_next_fire_at(self, reminder_id: int, next_fire_at: datetime):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE reminders SET next_fire_at = $1 WHERE reminder_id = $2",
+                next_fire_at, reminder_id,
+            )
 
-    def delete_reminder(self, reminder_id: int):
-        self.db.execute("DELETE FROM reminders WHERE reminder_id = %s", (reminder_id,))
-        self.db.commit()
+    async def get_reminders_without_next_fire(self) -> list[tuple]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT r.reminder_id, h.start_date, rt.time, h.frequency,
+                          COALESCE(u.timezone, 'Europe/Minsk') AS timezone
+                   FROM reminders r
+                   JOIN users u ON r.user_id = u.user_id
+                   JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
+                   JOIN habits h ON r.reminder_id = h.reminder_id
+                   WHERE r.next_fire_at IS NULL AND r.is_habit = true AND h.active = true""",
+            )
+            return [tuple(r) for r in rows]
 
-    def create_habit(self, reminder_id: int, frequency: int):
-        today = date.today()
-        self.db.execute(
-            "INSERT INTO habits (reminder_id, frequency, start_date, active) VALUES (%s, %s, %s, %s)",
-            (reminder_id, frequency, today, True)
-        )
-        self.db.execute(
-            "UPDATE reminders SET is_habit = True WHERE reminder_id = %s",
-            (reminder_id,)
-        )
-        self.db.commit()
+    async def get_reminder_time(self, reminder_id: int):
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """SELECT rt.interval, rt.time FROM reminders r
+                   JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
+                   WHERE r.reminder_id = $1""",
+                reminder_id,
+            )
+            return tuple(row) if row else None
+
+    async def get_due_reminders(self) -> list[tuple]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT u.telegram_id, r.text, r.reminder_id, r.is_habit, h.frequency
+                   FROM reminders r
+                   JOIN users u ON r.user_id = u.user_id
+                   LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
+                   WHERE r.next_fire_at <= NOW()
+                     AND r.next_fire_at IS NOT NULL
+                     AND (r.is_habit = false OR h.active = true)""",
+            )
+            return [tuple(r) for r in rows]
+
+    async def advance_next_fire(self, reminder_id: int, is_habit: bool, frequency: int = None):
+        async with self.pool.acquire() as conn:
+            if is_habit and frequency:
+                await conn.execute(
+                    "UPDATE reminders SET next_fire_at = next_fire_at + ($1 || ' days')::INTERVAL WHERE reminder_id = $2",
+                    str(frequency), reminder_id,
+                )
+            else:
+                await conn.execute(
+                    "UPDATE reminders SET next_fire_at = NULL WHERE reminder_id = $1",
+                    reminder_id,
+                )
+
+    async def get_reminders(self, telegram_id: int) -> list[tuple]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT r.text, r.is_habit, r.is_goal, r.next_fire_at, rt.time,
+                          r.reminder_id, h.frequency, h.start_date, h.active, h.habit_id
+                   FROM reminders r
+                   JOIN users u ON r.user_id = u.user_id
+                   JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
+                   LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
+                   WHERE u.telegram_id = $1
+                   ORDER BY r.reminder_id ASC""",
+                telegram_id,
+            )
+            return [tuple(r) for r in rows]
+
+    async def get_telegram_id_by_reminder(self, reminder_id: int) -> int | None:
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT u.telegram_id FROM reminders r JOIN users u ON r.user_id = u.user_id WHERE r.reminder_id = $1",
+                reminder_id,
+            )
+
+    async def delete_reminder(self, reminder_id: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM reminders WHERE reminder_id = $1", reminder_id)
+
+    async def create_habit(self, reminder_id: int, frequency: int):
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "INSERT INTO habits (reminder_id, frequency, start_date, active) VALUES ($1, $2, $3, $4)",
+                    reminder_id, frequency, date.today(), True,
+                )
+                await conn.execute(
+                    "UPDATE reminders SET is_habit = True WHERE reminder_id = $1", reminder_id
+                )
 
     # ── API методы (Mini App) ──────────────────────────────────────────────────
 
-    def get_reminders_for_api(self, telegram_id: int) -> list[dict]:
-        self.db.execute(
-            """SELECT r.reminder_id, r.is_habit, r.is_goal, r.text,
-                      rt.interval, rt.time,
-                      h.habit_id, h.frequency, h.start_date, h.active,
-                      g.goal_id, g.start_date, g.end_date
-               FROM reminders r
-               JOIN users u ON r.user_id = u.user_id
-               JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
-               LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
-               LEFT JOIN goals  g ON r.reminder_id = g.reminder_id  AND r.is_goal  = true
-               WHERE u.telegram_id = %s
-               ORDER BY r.reminder_id ASC""",
-            (telegram_id,)
-        )
-        rows = self.db.fetchall()
+    async def get_reminders_for_api(self, telegram_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT r.reminder_id, r.is_habit, r.is_goal, r.text,
+                          r.next_fire_at, rt.time,
+                          h.habit_id, h.frequency, h.start_date AS h_start, h.active,
+                          g.goal_id, g.start_date AS g_start, g.end_date
+                   FROM reminders r
+                   JOIN users u ON r.user_id = u.user_id
+                   JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
+                   LEFT JOIN habits h ON r.reminder_id = h.reminder_id AND r.is_habit = true
+                   LEFT JOIN goals  g ON r.reminder_id = g.reminder_id  AND r.is_goal  = true
+                   WHERE u.telegram_id = $1
+                   ORDER BY r.reminder_id ASC""",
+                telegram_id,
+            )
+            if not rows:
+                return []
+
+            reminder_ids = [r["reminder_id"] for r in rows]
+            checkin_rows = await conn.fetch(
+                "SELECT reminder_id, checkin_date FROM checkins WHERE reminder_id = ANY($1::int[]) ORDER BY checkin_date",
+                reminder_ids,
+            )
+
+        checkins_map: dict[int, list[str]] = {}
+        for cr in checkin_rows:
+            checkins_map.setdefault(cr["reminder_id"], []).append(cr["checkin_date"].isoformat())
+
         result = []
         for row in rows:
-            (rid, is_habit, is_goal, text, interval, time_val,
-             habit_id, frequency, h_start, h_active,
-             goal_id, g_start, g_end) = row
+            rid      = row["reminder_id"]
+            is_habit = row["is_habit"]
+            is_goal  = row["is_goal"]
+            h_start  = row["h_start"]
+            g_start  = row["g_start"]
+            g_end    = row["end_date"]
+            frequency = row["frequency"]
+            time_val  = row["time"]
+            h_active  = row["active"]
+            next_fire_at = row["next_fire_at"]
 
-            rtype = 'habit' if is_habit else ('goal' if is_goal else 'reminder')
+            rtype = "habit" if is_habit else ("goal" if is_goal else "reminder")
 
-            # interval хранится как "2025.01.01" → конвертируем в "2025-01-01"
-            date_str = str(interval).replace('.', '-') if interval else ''
+            if is_habit and h_start:
+                date_str = h_start.isoformat()
+            elif is_goal and g_start:
+                date_str = g_start.isoformat()
+            elif next_fire_at:
+                date_str = next_fire_at.date().isoformat()
+            else:
+                date_str = ""
 
             d = {
-                'id':     rid,
-                'type':   rtype,
-                'title':  text,
-                'date':   date_str,
-                'time':   str(time_val)[:5],
-                'active': bool(h_active) if is_habit else True,
-                'checkins': [],
+                "id":       rid,
+                "type":     rtype,
+                "title":    row["text"],
+                "date":     date_str,
+                "time":     str(time_val)[:5],
+                "active":   bool(h_active) if is_habit else True,
+                "checkins": checkins_map.get(rid, []),
             }
             if is_habit and frequency is not None:
-                d['interval'] = int(frequency)
+                d["interval"] = int(frequency)
             if is_goal:
-                d['endDate']  = g_end.isoformat() if g_end else None
-                d['interval'] = int(frequency) if frequency else 1
+                d["endDate"]  = g_end.isoformat() if g_end else None
+                d["interval"] = int(frequency) if frequency else 1
             result.append(d)
         return result
 
-    def create_reminder_full(
+    async def create_reminder_full(
         self, telegram_id: int, title: str, date_str: str,
-        time_str: str, rtype: str, interval: int, end_date: str | None
+        time_str: str, rtype: str, interval: int, end_date: str | None,
     ) -> int:
-        """Создаёт шаблон + напоминание + запись привычки/цели. Возвращает reminder_id."""
-        # date_str приходит как "2025-01-01" → храним как "2025.01.01"
-        interval_stored = date_str.replace('-', '.')
-        name = f"{time_str} {interval_stored}"
+        interval_days = interval if rtype != "reminder" else 0
+        name = f"{time_str} {date_str}"
+        is_habit = rtype == "habit"
+        is_goal  = rtype == "goal"
 
-        self.db.execute(
-            "INSERT INTO recurrence_templates (name, interval, time) VALUES (%s, %s, %s) RETURNING recurrence_template_id",
-            (name, interval_stored, time_str)
-        )
-        template_id = self.db.fetchone()[0]
+        parsed_time = _parse_time(time_str)
+        parsed_date = _parse_date(date_str)
 
-        self.db.execute("SELECT user_id FROM users WHERE telegram_id = %s", (telegram_id,))
-        user_id = self.db.fetchone()[0]
-
-        is_habit = rtype == 'habit'
-        is_goal  = rtype == 'goal'
-        self.db.execute(
-            "INSERT INTO reminders (user_id, recurrence_template_id, text, is_habit, is_goal) "
-            "VALUES (%s, %s, %s, %s, %s) RETURNING reminder_id",
-            (user_id, template_id, title, is_habit, is_goal)
-        )
-        reminder_id = self.db.fetchone()[0]
-
-        start = date_str  # "2025-01-01"
-        if is_habit:
-            self.db.execute(
-                "INSERT INTO habits (reminder_id, frequency, start_date, active) VALUES (%s, %s, %s, true)",
-                (reminder_id, interval or 1, start)
-            )
-        elif is_goal:
-            self.db.execute(
-                "INSERT INTO goals (reminder_id, description, start_date, end_date) VALUES (%s, %s, %s, %s)",
-                (reminder_id, title, start, end_date)
-            )
-
-        self.db.commit()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                template_id = await conn.fetchval(
+                    "INSERT INTO recurrence_templates (name, interval, time) VALUES ($1, $2, $3) RETURNING recurrence_template_id",
+                    name, interval_days, parsed_time,
+                )
+                user_id = await conn.fetchval(
+                    "SELECT user_id FROM users WHERE telegram_id = $1", telegram_id
+                )
+                reminder_id = await conn.fetchval(
+                    "INSERT INTO reminders (user_id, recurrence_template_id, text, is_habit, is_goal) "
+                    "VALUES ($1, $2, $3, $4, $5) RETURNING reminder_id",
+                    user_id, template_id, title, is_habit, is_goal,
+                )
+                if is_habit:
+                    await conn.execute(
+                        "INSERT INTO habits (reminder_id, frequency, start_date, active) VALUES ($1, $2, $3, true)",
+                        reminder_id, interval or 1, parsed_date,
+                    )
+                elif is_goal:
+                    parsed_end = _parse_date(end_date) if end_date else None
+                    await conn.execute(
+                        "INSERT INTO goals (reminder_id, description, start_date, end_date) VALUES ($1, $2, $3, $4)",
+                        reminder_id, title, parsed_date, parsed_end,
+                    )
         return reminder_id
 
-    def update_reminder_full(
+    async def update_reminder_full(
         self, reminder_id: int, title: str, date_str: str,
-        time_str: str, rtype: str, interval: int, end_date: str | None
+        time_str: str, rtype: str, interval: int, end_date: str | None,
     ) -> None:
-        interval_stored = date_str.replace('-', '.')
-        name = f"{time_str} {interval_stored}"
+        interval_days = interval if rtype != "reminder" else 0
+        name = f"{time_str} {date_str}"
+        is_habit = rtype == "habit"
+        is_goal  = rtype == "goal"
 
-        # Обновляем шаблон
-        self.db.execute(
-            """UPDATE recurrence_templates SET name = %s, interval = %s, time = %s
-               WHERE recurrence_template_id = (
-                   SELECT recurrence_template_id FROM reminders WHERE reminder_id = %s
-               )""",
-            (name, interval_stored, time_str, reminder_id)
-        )
+        parsed_time = _parse_time(time_str)
+        parsed_date = _parse_date(date_str)
 
-        is_habit = rtype == 'habit'
-        is_goal  = rtype == 'goal'
-        self.db.execute(
-            "UPDATE reminders SET text = %s, is_habit = %s, is_goal = %s WHERE reminder_id = %s",
-            (title, is_habit, is_goal, reminder_id)
-        )
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    """UPDATE recurrence_templates SET name = $1, interval = $2, time = $3
+                       WHERE recurrence_template_id = (
+                           SELECT recurrence_template_id FROM reminders WHERE reminder_id = $4
+                       )""",
+                    name, interval_days, parsed_time, reminder_id,
+                )
+                await conn.execute(
+                    "UPDATE reminders SET text = $1, is_habit = $2, is_goal = $3 WHERE reminder_id = $4",
+                    title, is_habit, is_goal, reminder_id,
+                )
+                await conn.execute("DELETE FROM habits WHERE reminder_id = $1", reminder_id)
+                await conn.execute("DELETE FROM goals  WHERE reminder_id = $1", reminder_id)
 
-        # Удаляем старые habit/goal и пересоздаём нужные
-        self.db.execute("DELETE FROM habits WHERE reminder_id = %s", (reminder_id,))
-        self.db.execute("DELETE FROM goals  WHERE reminder_id = %s", (reminder_id,))
+                if is_habit:
+                    await conn.execute(
+                        "INSERT INTO habits (reminder_id, frequency, start_date, active) VALUES ($1, $2, $3, true)",
+                        reminder_id, interval or 1, parsed_date,
+                    )
+                elif is_goal:
+                    parsed_end = _parse_date(end_date) if end_date else None
+                    await conn.execute(
+                        "INSERT INTO goals (reminder_id, description, start_date, end_date) VALUES ($1, $2, $3, $4)",
+                        reminder_id, title, parsed_date, parsed_end,
+                    )
 
-        if is_habit:
-            self.db.execute(
-                "INSERT INTO habits (reminder_id, frequency, start_date, active) VALUES (%s, %s, %s, true)",
-                (reminder_id, interval or 1, date_str)
+    async def toggle_reminder_active(self, reminder_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            val = await conn.fetchval(
+                "UPDATE habits SET active = NOT active WHERE reminder_id = $1 RETURNING active",
+                reminder_id,
             )
-        elif is_goal:
-            self.db.execute(
-                "INSERT INTO goals (reminder_id, description, start_date, end_date) VALUES (%s, %s, %s, %s)",
-                (reminder_id, title, date_str, end_date)
+            return bool(val) if val is not None else True
+
+    async def toggle_habit(self, habit_id: int) -> tuple:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE habits SET active = NOT active WHERE habit_id = $1", habit_id
             )
+            row = await conn.fetchrow(
+                """SELECT h.*, r.text, rt.time FROM habits h
+                   JOIN reminders r ON r.reminder_id = h.reminder_id
+                   JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
+                   WHERE habit_id = $1""",
+                habit_id,
+            )
+            return tuple(row) if row else None
 
-        self.db.commit()
-
-    def toggle_reminder_active(self, reminder_id: int) -> bool:
-        """Переключает active у привычки. Возвращает новое значение."""
-        self.db.execute(
-            "UPDATE habits SET active = NOT active WHERE reminder_id = %s RETURNING active",
-            (reminder_id,)
-        )
-        row = self.db.fetchone()
-        self.db.commit()
-        return bool(row[0]) if row else True
-
-    def toggle_habit(self, habit_id: int) -> tuple:
-        self.db.execute("UPDATE habits SET active = NOT active WHERE habit_id = %s", (habit_id,))
-        self.db.commit()
-        self.db.execute(
-            """SELECT h.*, r.text, rt.time FROM habits h
-               JOIN reminders r ON r.reminder_id = h.reminder_id
-               JOIN recurrence_templates rt ON r.recurrence_template_id = rt.recurrence_template_id
-               WHERE habit_id = %s""",
-            (habit_id,)
-        )
-        return self.db.fetchone()
+    async def add_checkin(self, reminder_id: int, checkin_date: str) -> bool:
+        async with self.pool.acquire() as conn:
+            try:
+                await conn.execute(
+                    "INSERT INTO checkins (reminder_id, checkin_date) VALUES ($1, $2)",
+                    reminder_id, checkin_date,
+                )
+                return True
+            except asyncpg.UniqueViolationError:
+                return False

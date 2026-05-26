@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # main.py — точка входа в приложение
+#.\.venv\Scripts\activate
 """
 Запуск:
     python main.py
