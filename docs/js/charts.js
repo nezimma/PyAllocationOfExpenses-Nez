@@ -39,8 +39,8 @@ function buildBarChart(expenses, period = 'week') {
   };
 }
 
-function buildLineChart(expenses) {
-  const { labels, data } = getLineData(expenses);
+function buildLineChart(expenses, period = 'week') {
+  const { labels, data } = getLineData(expenses, period);
   const c = getChartColors();
   return {
     type: 'line',
@@ -126,7 +126,7 @@ function renderChart(type, expenses, period = 'week') {
 
   let cfg;
   if (type === 'bar')       cfg = buildBarChart(expenses, period);
-  else if (type === 'line') cfg = buildLineChart(expenses);
+  else if (type === 'line') cfg = buildLineChart(expenses, period);
   else                      cfg = buildDoughnutChart(expenses);
 
   mainChart = new Chart(ctx, cfg);
