@@ -961,6 +961,21 @@ ul { list-style: none; }
   background: var(--modal-bg);
 }
 
+/* Amount + currency row in edit modal */
+.amount-row {
+  display: flex;
+  gap: 8px;
+}
+.amount-row .field__input:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.amount-currency-select {
+  width: 108px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 /* Buttons */
 .btn {
   flex: 1;
@@ -994,6 +1009,23 @@ ul { list-style: none; }
 .btn--ghost:hover {
   color: var(--text);
   background: var(--bg-elevated);
+}
+
+.btn--danger {
+  background: rgba(244, 67, 54, 0.1);
+  color: #F44336;
+  border: 1.5px solid rgba(244, 67, 54, 0.3);
+  padding: 0 14px;
+}
+
+.btn--danger:hover {
+  background: rgba(244, 67, 54, 0.2);
+}
+
+.modal__footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 /* ═══════════════════════════════════════════════

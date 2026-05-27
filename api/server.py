@@ -201,6 +201,52 @@ async def handle_toggle_reminder(request: web.Request) -> web.Response:
     ))
 
 
+# ── Expense CRUD ──────────────────────────────────────────────────────────────
+
+async def handle_update_expense(request: web.Request) -> web.Response:
+    try:
+        expense_id = int(request.match_info["expense_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid expense_id"))
+
+    try:
+        body = await request.json()
+        telegram_id = int(body["telegram_id"])
+        ok = await database.expenses.update_expense(
+            expense_id=expense_id,
+            telegram_id=telegram_id,
+            description=body.get("name", ""),
+            amount=float(body.get("amount", 0)),
+            currency=body.get("currency", "BYN"),
+            category_key=body.get("cat", "other"),
+            date_str=body.get("date", ""),
+        )
+        if not ok:
+            return _cors(web.Response(status=404, text="Not found"))
+        return _cors(web.Response(content_type="application/json", text='{"ok":true}'))
+    except Exception as e:
+        logger.error(f"handle_update_expense error: {e}")
+        return _cors(web.Response(status=500, text=str(e)))
+
+
+async def handle_delete_expense(request: web.Request) -> web.Response:
+    try:
+        expense_id = int(request.match_info["expense_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid expense_id"))
+
+    try:
+        body = await request.json()
+        telegram_id = int(body["telegram_id"])
+        ok = await database.expenses.delete_expense(expense_id, telegram_id)
+        if not ok:
+            return _cors(web.Response(status=404, text="Not found"))
+        return _cors(web.Response(content_type="application/json", text='{"ok":true}'))
+    except Exception as e:
+        logger.error(f"handle_delete_expense error: {e}")
+        return _cors(web.Response(status=500, text=str(e)))
+
+
 # ── Budget forecast ───────────────────────────────────────────────────────────
 
 async def handle_forecast(request: web.Request) -> web.Response:
@@ -263,6 +309,10 @@ def create_app() -> web.Application:
 
     app.router.add_route("OPTIONS", "/api/forecast/{telegram_id}", handle_options)
     app.router.add_get("/api/forecast/{telegram_id}", handle_forecast)
+
+    app.router.add_route("OPTIONS", "/api/expense/{expense_id}", handle_options)
+    app.router.add_put("/api/expense/{expense_id}", handle_update_expense)
+    app.router.add_delete("/api/expense/{expense_id}", handle_delete_expense)
 
     app.router.add_route("OPTIONS", "/api/expenses/{telegram_id}", handle_options)
     app.router.add_get("/api/expenses/{telegram_id}", handle_expenses)

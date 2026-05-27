@@ -12,6 +12,7 @@ _CATEGORY_TO_KEY: dict[str, str] = {
     "Рестораны и еда": "restaurants",
     "Транспорт":       "transport",
     "Жилье":           "housing",
+    "Жильё":           "housing",
     "Одежда":          "clothes",
     "Быт":             "household",
     "Техника":         "electronics",
@@ -86,6 +87,55 @@ class ExpenseRepository:
                         "VALUES ($1, $2, $3, $4, $5, $6)",
                         user_id, category_id, voice_id, amount, desc, currency or "BYN",
                     )
+
+    async def update_expense(
+        self,
+        expense_id: int,
+        telegram_id: int,
+        description: str,
+        amount: float,
+        currency: str,
+        category_key: str,
+        date_str: str,
+    ) -> bool:
+        """Обновляет расход. Возвращает True если запись найдена и обновлена."""
+        cat_name = {v: k for k, v in _CATEGORY_TO_KEY.items()}.get(category_key)
+        async with self.pool.acquire() as conn:
+            user_id = await conn.fetchval(
+                "SELECT user_id FROM users WHERE telegram_id = $1", telegram_id
+            )
+            if not user_id:
+                return False
+            category_id = await conn.fetchval(
+                "SELECT category_id FROM categories WHERE name = $1", cat_name
+            ) if cat_name else None
+            result = await conn.execute(
+                """UPDATE expenses
+                      SET description = $1,
+                          amount      = $2,
+                          currency    = $3,
+                          category_id = $4,
+                          created_at  = $5::timestamptz
+                    WHERE expense_id = $6
+                      AND user_id    = $7""",
+                description, amount, currency, category_id, date_str,
+                expense_id, user_id,
+            )
+            return result == "UPDATE 1"
+
+    async def delete_expense(self, expense_id: int, telegram_id: int) -> bool:
+        """Удаляет расход пользователя. Возвращает True если удалено."""
+        async with self.pool.acquire() as conn:
+            user_id = await conn.fetchval(
+                "SELECT user_id FROM users WHERE telegram_id = $1", telegram_id
+            )
+            if not user_id:
+                return False
+            result = await conn.execute(
+                "DELETE FROM expenses WHERE expense_id = $1 AND user_id = $2",
+                expense_id, user_id,
+            )
+            return result == "DELETE 1"
 
     async def get_monthly_daily_totals(
         self, telegram_id: int, year: int, month: int

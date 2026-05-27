@@ -318,10 +318,11 @@ function openModal(id) {
   if (!expense) return;
   state.editingId = id;
 
-  document.getElementById('editName').value    = expense.name;
-  document.getElementById('editAmount').value  = expense.amount;
+  document.getElementById('editName').value     = expense.name;
+  document.getElementById('editAmount').value   = expense.amount;
+  document.getElementById('editCurrency').value = expense.currency || 'BYN';
   document.getElementById('editCategory').value = expense.cat;
-  document.getElementById('editDate').value    = expense.date;
+  document.getElementById('editDate').value     = expense.date;
 
   modalOverlay.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -331,27 +332,90 @@ function closeModal() {
   modalOverlay.classList.remove('open');
   document.body.style.overflow = '';
   state.editingId = null;
+  // Сбрасываем состояние кнопки удаления
+  const delBtn = document.getElementById('modalDelete');
+  if (delBtn) { delBtn.dataset.confirming = ''; delBtn.textContent = '🗑'; delBtn.style.flex = ''; }
 }
 
 document.getElementById('modalClose').addEventListener('click', closeModal);
 document.getElementById('modalCancel').addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 
-document.getElementById('modalSave').addEventListener('click', () => {
+document.getElementById('modalSave').addEventListener('click', async () => {
   if (!state.editingId) return;
   const idx = EXPENSES.findIndex(e => e.id === state.editingId);
   if (idx === -1) return;
 
-  EXPENSES[idx] = {
+  const updated = {
     ...EXPENSES[idx],
-    name:   document.getElementById('editName').value,
-    amount: +document.getElementById('editAmount').value,
-    cat:    document.getElementById('editCategory').value,
-    date:   document.getElementById('editDate').value,
+    name:     document.getElementById('editName').value,
+    amount:   +document.getElementById('editAmount').value,
+    currency: document.getElementById('editCurrency').value,
+    cat:      document.getElementById('editCategory').value,
+    date:     document.getElementById('editDate').value,
   };
 
+  // Обновляем локально сразу
+  EXPENSES[idx] = updated;
   closeModal();
   render();
+
+  // Сохраняем в БД через API (если в Telegram)
+  const tg = window.Telegram?.WebApp;
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!userId) return;
+
+  try {
+    await fetch(`${API_BASE}/api/expense/${updated.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      body: JSON.stringify({ ...updated, telegram_id: userId }),
+    });
+  } catch (e) {
+    console.warn('Не удалось сохранить изменения:', e);
+  }
+});
+
+document.getElementById('modalDelete').addEventListener('click', async function() {
+  if (!state.editingId) return;
+
+  // Первый клик — просим подтверждение (меняем текст кнопки)
+  if (!this.dataset.confirming) {
+    this.dataset.confirming = '1';
+    this.textContent = 'Точно удалить?';
+    this.style.flex = '1';
+    // Через 3 секунды сбрасываем
+    setTimeout(() => {
+      this.dataset.confirming = '';
+      this.textContent = '🗑';
+      this.style.flex = '';
+    }, 3000);
+    return;
+  }
+
+  // Второй клик — удаляем
+  this.dataset.confirming = '';
+  this.textContent = '🗑';
+  this.style.flex = '';
+
+  const id = state.editingId;
+  EXPENSES = EXPENSES.filter(e => e.id !== id);
+  closeModal();
+  render();
+
+  const tg = window.Telegram?.WebApp;
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!userId) return;
+
+  try {
+    await fetch(`${API_BASE}/api/expense/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      body: JSON.stringify({ telegram_id: userId }),
+    });
+  } catch (e) {
+    console.warn('Не удалось удалить запись:', e);
+  }
 });
 
 // ── Forecast card ──

@@ -186,7 +186,6 @@
     <input class="search-bar__input" id="searchInput" type="text" placeholder="Поиск трат..." />
     <button class="search-bar__clear" id="searchClear">✕</button>
   </div>
-  <div class="search-hint" id="searchHint">Поиск будет работать через Elasticsearch</div>
 </section>
 
 <!-- ────── EXPENSES LIST ────── -->
@@ -356,8 +355,17 @@
         <input class="field__input" id="editName" type="text" />
       </label>
       <label class="field">
-        <span class="field__label">Сумма, Br</span>
-        <input class="field__input" id="editAmount" type="number" />
+        <span class="field__label">Сумма</span>
+        <div class="amount-row">
+          <input class="field__input" id="editAmount" type="number" />
+          <select class="field__input amount-currency-select" id="editCurrency">
+            <option value="BYN">Br (BYN)</option>
+            <option value="USD">$ (USD)</option>
+            <option value="EUR">€ (EUR)</option>
+            <option value="RUB">₽ (RUB)</option>
+            <option value="PLN">zł (PLN)</option>
+          </select>
+        </div>
       </label>
       <label class="field">
         <span class="field__label">Категория</span>
@@ -379,6 +387,7 @@
       </label>
     </div>
     <div class="modal__footer">
+      <button class="btn btn--danger" id="modalDelete">🗑</button>
       <button class="btn btn--ghost" id="modalCancel">Отмена</button>
       <button class="btn btn--primary" id="modalSave">Сохранить</button>
     </div>
