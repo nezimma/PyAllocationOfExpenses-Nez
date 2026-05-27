@@ -313,6 +313,42 @@ class ReminderRepository:
             )
             return tuple(row) if row else None
 
+    async def skip_overdue_reminders(self) -> None:
+        """
+        Вызывается при старте бота.
+        — Разовые напоминания с истёкшим next_fire_at → NULL (не отправляем).
+        — Привычки с истёкшим next_fire_at → двигаем вперёд на N*frequency дней
+          до первого момента в будущем (без отправки).
+        """
+        async with self.pool.acquire() as conn:
+            # Разовые — просто обнуляем
+            await conn.execute(
+                """UPDATE reminders
+                   SET next_fire_at = NULL
+                   WHERE next_fire_at < NOW()
+                     AND is_habit = false
+                     AND next_fire_at IS NOT NULL"""
+            )
+            # Привычки — двигаем до будущего
+            overdue_habits = await conn.fetch(
+                """SELECT r.reminder_id, h.frequency
+                   FROM reminders r
+                   JOIN habits h ON r.reminder_id = h.reminder_id
+                   WHERE r.next_fire_at < NOW()
+                     AND r.is_habit = true
+                     AND h.active = true
+                     AND r.next_fire_at IS NOT NULL"""
+            )
+            for row in overdue_habits:
+                await conn.execute(
+                    """UPDATE reminders
+                       SET next_fire_at = next_fire_at
+                           + (CEIL(EXTRACT(EPOCH FROM (NOW() - next_fire_at))
+                                   / ($1 * 86400.0)) * ($1 || ' days')::INTERVAL)
+                       WHERE reminder_id = $2""",
+                    str(row["frequency"]), row["reminder_id"],
+                )
+
     async def add_checkin(self, reminder_id: int, checkin_date: str) -> bool:
         async with self.pool.acquire() as conn:
             try:

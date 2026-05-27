@@ -22,6 +22,8 @@ async def initialize_next_fire_at() -> None:
 
 async def run_scheduler(bot: Bot) -> None:
     await initialize_next_fire_at()
+    # Пропускаем все накопленные за время офлайна напоминания — не шлём их пачкой.
+    await database.reminders.skip_overdue_reminders()
     logger.info("Notification scheduler started")
 
     while True:
@@ -30,7 +32,13 @@ async def run_scheduler(bot: Bot) -> None:
             due = await database.reminders.get_due_reminders()
             for telegram_id, text, reminder_id, is_habit, frequency in due:
                 try:
-                    await bot.send_message(telegram_id, f"🔔 {text}")
+                    from bot.keyboards import reminder_actions_kb
+                    markup = reminder_actions_kb(reminder_id) if not is_habit else None
+                    await bot.send_message(
+                        telegram_id,
+                        f"🔔 {text}",
+                        reply_markup=markup,
+                    )
                     await database.reminders.advance_next_fire(reminder_id, bool(is_habit), frequency)
                     logger.info(f"Sent reminder {reminder_id} → {telegram_id}")
                 except Exception:

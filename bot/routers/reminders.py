@@ -175,9 +175,23 @@ async def on_delete(cb: types.CallbackQuery):
     await cb.message.delete()
 
 
+@router.callback_query(lambda c: c.data.startswith("aim_"))
+async def on_create_goal(cb: types.CallbackQuery):
+    reminder_id = int(cb.data.split("_")[1])
+    # Конвертируем напоминание в цель через API Mini App (там уже есть полный UI).
+    # В боте пока показываем подсказку.
+    await cb.answer()
+    await cb.message.answer(
+        "🎯 Для создания цели откройте Mini App → вкладка «Напоминания» → "
+        "нажмите на напоминание и выберите тип «Цель».\n\n"
+        "Там можно задать дату начала, конца и интервал."
+    )
+
+
 @router.callback_query(lambda c: c.data.startswith("habit_"))
 async def on_create_habit(cb: types.CallbackQuery, state: FSMContext):
     reminder_id = int(cb.data.split("_")[1])
+    await cb.answer()
     await cb.message.answer("Введите интервал повторения в днях (например: 7)")
     await state.set_state(BotState.wait_habit_frequency)
     await state.update_data(number_reminder=reminder_id)

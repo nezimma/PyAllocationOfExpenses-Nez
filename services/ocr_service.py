@@ -6,8 +6,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Путь к Tesseract на Windows (стандартный путь после установки)
-_TESSERACT_WIN_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Возможные пути к Tesseract на Windows
+_TESSERACT_WIN_PATHS = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    r"C:\Users\USER\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
+    r"C:\tools\Tesseract-OCR\tesseract.exe",
+]
 
 # Фильтр строк-«мусора» с чека (служебные строки, которые не являются товарами)
 _RECEIPT_SKIP_RE = re.compile(
@@ -36,9 +41,14 @@ def _setup_tesseract() -> bool:
     """Проверяет и настраивает путь к Tesseract. Возвращает True если доступен."""
     try:
         import pytesseract
-        if os.name == "nt" and os.path.exists(_TESSERACT_WIN_PATH):
-            pytesseract.pytesseract.tesseract_cmd = _TESSERACT_WIN_PATH
-        # Проверяем что tesseract вообще запускается
+        # На Windows перебираем известные пути
+        if os.name == "nt":
+            for path in _TESSERACT_WIN_PATHS:
+                if os.path.exists(path):
+                    pytesseract.pytesseract.tesseract_cmd = path
+                    logger.info(f"Tesseract найден: {path}")
+                    break
+        # Проверяем что tesseract вообще запускается (может быть в PATH)
         pytesseract.get_tesseract_version()
         return True
     except Exception as e:

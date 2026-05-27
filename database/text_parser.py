@@ -63,6 +63,19 @@ _SLANG_MAP = {
 
 _STOP_CHARS = ',.*-–()[]{}!&"\\#№:;—«»?'
 
+# Голые числа после предлогов: "на 80", "за 150", "итого 200"
+_BARE_AMOUNT_RE = re.compile(
+    r'(?:^|\s)(?:за|на|итого|стоит|стоило|обошлось|обошлась|ещё|еще)\s+'
+    r'(\d+(?:[.,]\d+)?)\s*(?:руб(?:лей|ля|ль|л\.?)?|byn|р\.?)?\s*$',
+    re.IGNORECASE,
+)
+
+# Предлоги/союзы, которые остаются висеть в конце описания после вырезания суммы
+_TRAIL_PREP_RE = re.compile(
+    r'\s+(?:за|на|от|из|по|при|и|а|но|то|же|ли|бы|в|с|к|у|об|до|над|под)\s*$',
+    re.IGNORECASE,
+)
+
 # Глаголы, с которых обычно начинается описание нового расхода
 _ACTION_VERBS = (
     r'взял|взяла|купил|купила|приобрел|приобрела|заказал|заказала'
@@ -124,7 +137,23 @@ def _get_span(match) -> tuple[int, int]:
 def _clean_desc(text: str) -> str:
     for ch in _STOP_CHARS:
         text = text.replace(ch, "")
+    # Срезаем висячий предлог/союз в конце
+    text = _TRAIL_PREP_RE.sub("", text)
+    # Срезаем одиночные цифры/слова ≤2 символов в конце (артефакты span-нарезки)
+    text = re.sub(r'\s+\d{1,3}\s*$', '', text)
+    text = re.sub(r'\s+\w{1,2}\s*$', '', text)
     return text.strip()
+
+
+def _bare_amount(text: str) -> float | None:
+    """Извлекает 'голое' число из 'на 80', 'за 150' и т.п. (без natasha)."""
+    m = _BARE_AMOUNT_RE.search(text)
+    if m:
+        try:
+            return float(m.group(1).replace(",", "."))
+        except ValueError:
+            pass
+    return None
 
 
 def split_text_and_amount(text: str) -> tuple[str, float | None, str | None]:
@@ -179,6 +208,22 @@ def split_multi_expenses(text: str) -> list[tuple[str, float | None, str | None]
         return [(text, None, None)]
 
     if len(matches) == 1:
+        # Проверяем: может быть второй расход с голым числом после глагола-разделителя
+        _, end1 = _get_span(matches[0])
+        rest = text[end1:]
+        verb_m = re.search(rf'\b(?:{_ACTION_VERBS})\b', rest, re.IGNORECASE)
+        if verb_m:
+            second_part = rest[verb_m.start():].strip()
+            bare_amt = _bare_amount(second_part)
+            if bare_amt is not None:
+                # Первый расход — всё до начала глагола в хвосте
+                first_text = text[:end1 + verb_m.start()].strip()
+                desc1, amount1, currency1 = split_text_and_amount(first_text)
+                # Второй — описание без суммы, сумма из bare_amount
+                desc2 = _BARE_AMOUNT_RE.sub("", second_part).strip(" ,.")
+                desc2 = _clean_desc(desc2) or second_part
+                return [(desc1, amount1, currency1), (desc2, bare_amt, None)]
+
         desc, amount, currency = split_text_and_amount(text)
         return [(desc, amount, currency)]
 
@@ -212,6 +257,8 @@ def split_multi_expenses(text: str) -> list[tuple[str, float | None, str | None]
 
         desc = (seg[:rel_start] + seg[rel_end:]).strip(" ,.")
         desc = _clean_desc(desc) or seg
+        # Убираем начальные союзы "и ...", "а ..."
+        desc = re.sub(r'^(?:и|а|но)\s+', '', desc, flags=re.IGNORECASE).strip()
 
         result.append((desc, amount, currency))
 
