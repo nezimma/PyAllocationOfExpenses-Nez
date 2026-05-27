@@ -71,6 +71,36 @@
   <button class="currency-btn" data-currency="RUB">₽</button>
 </div>
 
+<!-- ────── FORECAST CARD ────── -->
+<section class="forecast-card" id="forecastCard" style="display:none">
+  <div class="forecast-card__header">
+    <span class="forecast-card__icon">📈</span>
+    <span class="forecast-card__title">Прогноз на конец месяца</span>
+  </div>
+  <div class="forecast-card__body">
+    <div class="forecast-progress">
+      <div class="forecast-progress__bar">
+        <div class="forecast-progress__fill" id="forecastProgressFill"></div>
+      </div>
+      <span class="forecast-progress__label" id="forecastProgressLabel"></span>
+    </div>
+    <div class="forecast-numbers">
+      <div class="forecast-number">
+        <div class="forecast-number__label">Потрачено</div>
+        <div class="forecast-number__value" id="forecastSpent"></div>
+      </div>
+      <div class="forecast-number forecast-number--accent">
+        <div class="forecast-number__label">Прогноз</div>
+        <div class="forecast-number__value" id="forecastTotal"></div>
+      </div>
+      <div class="forecast-number">
+        <div class="forecast-number__label">В день</div>
+        <div class="forecast-number__value" id="forecastDaily"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ────── CHART TABS ────── -->
 <section class="charts-section">
   <div class="chart-tabs">

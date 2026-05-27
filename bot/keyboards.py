@@ -21,7 +21,7 @@ def expenses_menu() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text="Создать запись"), KeyboardButton(text="📷 Фото чека")],
             [KeyboardButton(text="Отчет по тратам"), KeyboardButton(text="📄 PDF-отчёт")],
-            [KeyboardButton(text="На главное меню")],
+            [KeyboardButton(text="📈 Прогноз"), KeyboardButton(text="На главное меню")],
         ],
         resize_keyboard=True,
     )

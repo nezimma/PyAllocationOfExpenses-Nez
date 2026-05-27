@@ -17,7 +17,8 @@ from cloud import disk
 from services.speech_service import SpeechRecognitionService
 from services import ocr_service
 from services import pdf_service
-from services.currency_service import symbol as cur_symbol
+from services.currency_service import symbol as cur_symbol, get_rates, convert
+from services import forecast_service
 import ml
 
 logger = logging.getLogger(__name__)
@@ -228,6 +229,79 @@ async def process_receipt_photo(message: types.Message, state: FSMContext, bot: 
     hint = "" if mode == "receipt" else "\n\n💡 Формат чека не распознан — применён универсальный парсер."
     await message.answer(
         f"📷 Чек обработан, записано {len(items)} позиций:\n{lines}{hint}"
+    )
+
+
+@router.message(F.text == "📈 Прогноз")
+async def send_forecast(message: types.Message):
+    """Прогноз расходов на конец текущего месяца."""
+    now = datetime.now()
+    year, month = now.year, now.month
+
+    preferred = await database.users.get_preferred_currency(message.from_user.id)
+    sym = cur_symbol(preferred)
+
+    rows = await database.expenses.get_monthly_daily_totals(
+        message.from_user.id, year, month
+    )
+
+    # Конвертируем всё в preferred_currency через актуальный курс
+    rates = await get_rates()
+    converted_rows = [
+        (day, convert(amount, row_cur, preferred, rates), category)
+        for day, amount, row_cur, category in rows
+    ]
+
+    result = forecast_service.forecast_month(converted_rows, year, month)
+
+    month_names = [
+        "", "январе", "феврале", "марте", "апреле", "мае", "июне",
+        "июле", "августе", "сентябре", "октябре", "ноябре", "декабре",
+    ]
+
+    if not result["enough_data"]:
+        await message.answer(
+            f"📈 Для прогноза нужно хотя бы 3 дня с тратами.\n"
+            f"В {month_names[month]} пока недостаточно данных."
+        )
+        return
+
+    # Прогресс-бар
+    pct = result["days_elapsed"] / result["days_in_month"]
+    filled = round(pct * 10)
+    bar = "█" * filled + "░" * (10 - filled)
+
+    # Категории (топ-5)
+    cat_lines = ""
+    cat_emoji = {
+        "Рестораны и еда": "🍽", "Транспорт": "🚗", "Жилье": "🏠",
+        "Одежда": "👗", "Быт": "🧹", "Техника": "💻",
+        "Образование": "📚", "Развлечения": "🎮", "Здоровье": "💊",
+    }
+    top_cats = list(result["by_category"].items())[:5]
+    if top_cats:
+        cat_lines = "\n\n📊 По категориям:\n" + "\n".join(
+            f"{cat_emoji.get(cat, '💰')} {cat} → ~{amt:,.0f} {sym}"
+            for cat, amt in top_cats
+        )
+
+    method_note = ""
+    if result["method"] == "regression" and result["r2"] is not None:
+        if result["r2"] >= 0.85:
+            method_note = "  ✅ высокая точность"
+        elif result["r2"] >= 0.6:
+            method_note = "  ⚠️ средняя точность"
+        else:
+            method_note = "  ℹ️ мало данных, приблизительно"
+
+    await message.answer(
+        f"📈 Прогноз на {month_names[month]} {year}\n\n"
+        f"Прогресс: {bar} {result['days_elapsed']}/{result['days_in_month']} дн.\n\n"
+        f"💸 Уже потрачено: {result['total_spent']:,.2f} {sym}\n"
+        f"📅 Среднедневной расход: {result['daily_avg']:,.2f} {sym}\n"
+        f"🔮 Прогноз на конец месяца: ~{result['forecast_total']:,.0f} {sym}"
+        f"{method_note}"
+        f"{cat_lines}"
     )
 
 

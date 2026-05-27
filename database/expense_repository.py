@@ -87,6 +87,30 @@ class ExpenseRepository:
                         user_id, category_id, voice_id, amount, desc, currency or "BYN",
                     )
 
+    async def get_monthly_daily_totals(
+        self, telegram_id: int, year: int, month: int
+    ) -> list[tuple]:
+        """Возвращает [(date, amount, currency, category_name)] за указанный месяц."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT ex.created_at::date AS day,
+                          ex.amount,
+                          COALESCE(ex.currency, 'BYN') AS currency,
+                          c.name AS category
+                   FROM expenses ex
+                   JOIN users u ON ex.user_id = u.user_id
+                   LEFT JOIN categories c ON ex.category_id = c.category_id
+                   WHERE u.telegram_id = $1
+                     AND EXTRACT(YEAR  FROM ex.created_at) = $2
+                     AND EXTRACT(MONTH FROM ex.created_at) = $3
+                   ORDER BY ex.created_at""",
+                telegram_id, year, month,
+            )
+            return [
+                (r["day"], float(r["amount"] or 0), r["currency"], r["category"])
+                for r in rows
+            ]
+
     async def get_expenses(self, telegram_id: int) -> list[tuple]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(

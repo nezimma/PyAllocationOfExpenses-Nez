@@ -92,6 +92,50 @@ const MOCK_EXPENSES = [
   { id: 24, name: 'Посидел в Beermania',                      cat: 'restaurants',   amount: 42,  currency: 'BYN', date: '2025-03-12T20:30' },
 ];
 
+// Прогноз — заполняется из API или строится из локальных данных
+let FORECAST = null;
+
+async function loadForecast(userId) {
+  try {
+    const now = new Date();
+    const resp = await fetch(
+      `${API_BASE}/api/forecast/${userId}?year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
+      { headers: { 'ngrok-skip-browser-warning': 'true' } },
+    );
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (e) {
+    console.warn('Forecast API недоступен:', e);
+    return null;
+  }
+}
+
+function buildLocalForecast() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const currentMonthExpenses = EXPENSES.filter(e => {
+    const d = new Date(e.date);
+    return d.getFullYear() === year && d.getMonth() + 1 === month;
+  });
+  if (currentMonthExpenses.length === 0) return null;
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today = now.getDate();
+  const totalSpent = currentMonthExpenses.reduce((s, e) => s + displayAmount(e), 0);
+  const dailyAvg = totalSpent / today;
+  const forecastTotal = dailyAvg * daysInMonth;
+
+  return {
+    total_spent: totalSpent,
+    forecast_total: forecastTotal,
+    daily_avg: dailyAvg,
+    days_elapsed: today,
+    days_in_month: daysInMonth,
+    enough_data: currentMonthExpenses.length >= 3,
+  };
+}
+
 async function loadExpenses() {
   const tg = window.Telegram?.WebApp;
   const userId = tg?.initDataUnsafe?.user?.id;
@@ -99,7 +143,7 @@ async function loadExpenses() {
     EXPENSES = [...MOCK_EXPENSES];
     return;
   }
-  // Загружаем расходы и курсы параллельно
+  // Загружаем расходы, курсы и прогноз параллельно
   await Promise.all([
     (async () => {
       try {
@@ -114,6 +158,7 @@ async function loadExpenses() {
       }
     })(),
     loadRates(),
+    (async () => { FORECAST = await loadForecast(userId); })(),
   ]);
 }
 

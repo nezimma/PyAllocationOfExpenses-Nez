@@ -285,6 +285,110 @@ ul { list-style: none; }
 }
 
 /* ═══════════════════════════════════════════════
+   FORECAST CARD
+═══════════════════════════════════════════════ */
+.forecast-card {
+  margin: 0 16px 12px;
+  padding: 16px 18px;
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  border: 1.5px solid var(--accent);
+  position: relative;
+  overflow: hidden;
+}
+
+.forecast-card::before {
+  content: '';
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 100px; height: 100px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.forecast-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.forecast-card__icon { font-size: 16px; }
+
+.forecast-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.forecast-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.forecast-progress__bar {
+  flex: 1;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.forecast-progress__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.forecast-progress__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.forecast-numbers {
+  display: flex;
+  gap: 8px;
+}
+
+.forecast-number {
+  flex: 1;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.forecast-number--accent {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.forecast-number__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.forecast-number__value {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.forecast-number--accent .forecast-number__value {
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════
    PERIOD NAVIGATION
 ═══════════════════════════════════════════════ */
 .period-nav {

@@ -5,6 +5,7 @@ from aiohttp import web
 import database
 from services.scheduler_utils import calc_next_fire, get_tz
 from services import currency_service
+from services import forecast_service
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +201,39 @@ async def handle_toggle_reminder(request: web.Request) -> web.Response:
     ))
 
 
+# ── Budget forecast ───────────────────────────────────────────────────────────
+
+async def handle_forecast(request: web.Request) -> web.Response:
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid telegram_id"))
+
+    try:
+        from datetime import date as _date
+        today = _date.today()
+        year = int(request.rel_url.query.get("year", today.year))
+        month = int(request.rel_url.query.get("month", today.month))
+
+        rows = await database.expenses.get_monthly_daily_totals(telegram_id, year, month)
+
+        # Конвертируем в BYN для унифицированного прогноза
+        rates = await currency_service.get_rates()
+        converted = [
+            (day, currency_service.convert(amount, cur, "BYN", rates), category)
+            for day, amount, cur, category in rows
+        ]
+
+        result = forecast_service.forecast_month(converted, year, month)
+        return _cors(web.Response(
+            content_type="application/json",
+            text=json.dumps(result, ensure_ascii=False, default=str),
+        ))
+    except Exception as e:
+        logger.error(f"handle_forecast error: {e}")
+        return _cors(web.Response(status=500, text="forecast error"))
+
+
 # ── Currency rates ────────────────────────────────────────────────────────────
 
 async def handle_rates(request: web.Request) -> web.Response:
@@ -226,6 +260,9 @@ def create_app() -> web.Application:
 
     app.router.add_route("OPTIONS", "/api/rates", handle_options)
     app.router.add_get("/api/rates", handle_rates)
+
+    app.router.add_route("OPTIONS", "/api/forecast/{telegram_id}", handle_options)
+    app.router.add_get("/api/forecast/{telegram_id}", handle_forecast)
 
     app.router.add_route("OPTIONS", "/api/expenses/{telegram_id}", handle_options)
     app.router.add_get("/api/expenses/{telegram_id}", handle_expenses)

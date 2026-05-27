@@ -256,6 +256,7 @@ function render() {
   document.getElementById('periodLabel').textContent = getPeriodLabel(period, state.periodOffset);
   document.getElementById('periodNext').disabled = state.periodOffset >= 0;
 
+  renderForecast();
   renderChart(currentChartType, filtered, period);
   renderList(filtered);
 
@@ -352,6 +353,45 @@ document.getElementById('modalSave').addEventListener('click', () => {
   closeModal();
   render();
 });
+
+// ── Forecast card ──
+function renderForecast() {
+  const card = document.getElementById('forecastCard');
+  if (!card) return;
+
+  // Используем API-прогноз или строим локально из mock-данных
+  const f = (typeof FORECAST !== 'undefined' && FORECAST) || buildLocalForecast();
+  if (!f || !f.enough_data) { card.style.display = 'none'; return; }
+
+  // Показываем только на текущем месяце
+  const activePeriod = getActivePeriod();
+  const now = new Date();
+  if (activePeriod !== 'month' || state.periodOffset !== 0) {
+    card.style.display = 'none';
+    return;
+  }
+
+  const sym = CURRENCY_SYMBOLS[state.currency] || state.currency;
+
+  // Конвертируем (FORECAST всегда в BYN с сервера)
+  const spent    = convertAmount(f.total_spent,    'BYN', state.currency);
+  const forecast = convertAmount(f.forecast_total, 'BYN', state.currency);
+  const daily    = convertAmount(f.daily_avg,      'BYN', state.currency);
+
+  const pct = Math.min(f.days_elapsed / f.days_in_month * 100, 100);
+
+  document.getElementById('forecastProgressFill').style.width = pct + '%';
+  document.getElementById('forecastProgressLabel').textContent =
+    `${f.days_elapsed} / ${f.days_in_month} дн.`;
+  document.getElementById('forecastSpent').textContent =
+    spent.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ' + sym;
+  document.getElementById('forecastTotal').textContent =
+    '~' + forecast.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ' + sym;
+  document.getElementById('forecastDaily').textContent =
+    daily.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ' + sym;
+
+  card.style.display = 'block';
+}
 
 // ── Helpers ──
 function pluralize(n, one, few, many) {
