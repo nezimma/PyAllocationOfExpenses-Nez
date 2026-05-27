@@ -1,9 +1,10 @@
 import asyncio
 import logging
-from aiohttp import web
+from aiohttp import web, ClientTimeout
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 from config import config
-from bot.routers import auth, expenses, reminders
+from bot.routers import auth, expenses, reminders, challenges
 from api.server import create_app
 from services.notification_scheduler import run_scheduler
 from database.db import create_pool
@@ -15,11 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 def create_bot() -> tuple[Bot, Dispatcher]:
-    bot = Bot(token=config.bot.token)
+    session = AiohttpSession(
+        timeout=ClientTimeout(total=120, connect=15, sock_read=90)
+    )
+    bot = Bot(token=config.bot.token, session=session)
     dp = Dispatcher()
     dp.include_router(auth.router)
     dp.include_router(expenses.router)
     dp.include_router(reminders.router)
+    dp.include_router(challenges.router)
     return bot, dp
 
 

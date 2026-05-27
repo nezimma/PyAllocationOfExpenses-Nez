@@ -76,6 +76,7 @@ async function loadReminders() {
 // ── Page navigation ──
 const expensesPage   = document.getElementById('expensesPage');
 const remindersPage  = document.getElementById('remindersPage');
+const challengesPage = document.getElementById('challengesPage');
 const expensePeriodControls = document.getElementById('expensePeriodControls');
 const headerTitle    = document.getElementById('headerTitle');
 
@@ -85,17 +86,19 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.classList.add('active');
 
     const page = tab.dataset.page;
+    expensesPage.classList.toggle('hidden', page !== 'expenses');
+    remindersPage.classList.toggle('hidden', page !== 'reminders');
+    if (challengesPage) challengesPage.classList.toggle('hidden', page !== 'challenges');
+    expensePeriodControls.style.display = page === 'expenses' ? '' : 'none';
+
     if (page === 'expenses') {
-      expensesPage.classList.remove('hidden');
-      remindersPage.classList.add('hidden');
-      expensePeriodControls.style.display = '';
       headerTitle.textContent = 'Расходы';
-    } else {
-      expensesPage.classList.add('hidden');
-      remindersPage.classList.remove('hidden');
-      expensePeriodControls.style.display = 'none';
+    } else if (page === 'reminders') {
       headerTitle.textContent = 'Напоминания';
       loadReminders();
+    } else if (page === 'challenges') {
+      headerTitle.textContent = 'Вызовы';
+      loadChallenges();
     }
   });
 });

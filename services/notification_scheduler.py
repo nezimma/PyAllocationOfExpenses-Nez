@@ -45,3 +45,11 @@ async def run_scheduler(bot: Bot) -> None:
                     logger.exception(f"Failed to send reminder {reminder_id}")
         except Exception:
             logger.exception("Scheduler loop error")
+
+        # ── Финансовые вызовы ─────────────────────────────────────────────────
+        try:
+            from services import challenge_service
+            await challenge_service.send_progress_notifications(bot)
+            await challenge_service.finalize_all_challenges(bot)
+        except Exception:
+            logger.exception("Challenge scheduler error")

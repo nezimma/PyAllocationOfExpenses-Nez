@@ -4,7 +4,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Расходы"), KeyboardButton(text="Напоминания")]],
+        keyboard=[
+            [KeyboardButton(text="Расходы"), KeyboardButton(text="Напоминания")],
+            [KeyboardButton(text="🎯 Вызовы")],
+        ],
         resize_keyboard=True,
     )
 

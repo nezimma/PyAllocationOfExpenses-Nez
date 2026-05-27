@@ -319,6 +319,85 @@ async def handle_rates(request: web.Request) -> web.Response:
         return _cors(web.Response(status=500, text="rates error"))
 
 
+# ── Challenges & Achievements ─────────────────────────────────────────────────
+
+async def handle_get_challenges(request: web.Request) -> web.Response:
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid telegram_id"))
+    try:
+        data = await database.challenges.get_challenges_for_api(telegram_id)
+        return _cors(web.Response(
+            content_type="application/json",
+            text=json.dumps(data, ensure_ascii=False, default=str),
+        ))
+    except Exception as e:
+        logger.error(f"handle_get_challenges error: {e}")
+        return _cors(web.Response(status=500, text="DB error"))
+
+
+async def handle_create_challenge(request: web.Request) -> web.Response:
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid telegram_id"))
+    try:
+        body = await request.json()
+    except Exception:
+        return _cors(web.Response(status=400, text="Invalid JSON"))
+
+    cat_key = body.get("category_key", "").strip()
+    target = body.get("target_amount")
+    if not cat_key or not target:
+        return _cors(web.Response(status=400, text="category_key and target_amount required"))
+    try:
+        from services import challenge_service
+        challenge_id = await challenge_service.accept_challenge(telegram_id, cat_key, float(target))
+        return _cors(web.Response(
+            status=201,
+            content_type="application/json",
+            text=json.dumps({"id": challenge_id}),
+        ))
+    except Exception as e:
+        logger.error(f"handle_create_challenge error: {e}")
+        return _cors(web.Response(status=500, text=str(e)))
+
+
+async def handle_delete_challenge(request: web.Request) -> web.Response:
+    try:
+        challenge_id = int(request.match_info["challenge_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid challenge_id"))
+    try:
+        await database.challenges.finalize_challenge(challenge_id, "cancelled")
+        return _cors(web.Response(content_type="application/json", text='{"ok":true}'))
+    except Exception as e:
+        logger.error(f"handle_delete_challenge error: {e}")
+        return _cors(web.Response(status=500, text=str(e)))
+
+
+async def handle_get_achievements(request: web.Request) -> web.Response:
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid telegram_id"))
+    try:
+        all_ach = await database.challenges.get_all_achievements()
+        user_ach = await database.challenges.get_user_achievements_for_api(telegram_id)
+        return _cors(web.Response(
+            content_type="application/json",
+            text=json.dumps(
+                {"all": all_ach, "earned": user_ach},
+                ensure_ascii=False,
+                default=str,
+            ),
+        ))
+    except Exception as e:
+        logger.error(f"handle_get_achievements error: {e}")
+        return _cors(web.Response(status=500, text="DB error"))
+
+
 # ── App factory ───────────────────────────────────────────────────────────────
 
 def create_app() -> web.Application:
@@ -353,5 +432,15 @@ def create_app() -> web.Application:
     app.router.add_route("OPTIONS", "/api/reminder/{reminder_id}", handle_options)
     app.router.add_put("/api/reminder/{reminder_id}", handle_update_reminder)
     app.router.add_delete("/api/reminder/{reminder_id}", handle_delete_reminder)
+
+    app.router.add_route("OPTIONS", "/api/challenges/{telegram_id}", handle_options)
+    app.router.add_get("/api/challenges/{telegram_id}", handle_get_challenges)
+    app.router.add_post("/api/challenges/{telegram_id}", handle_create_challenge)
+
+    app.router.add_route("OPTIONS", "/api/challenge/{challenge_id}", handle_options)
+    app.router.add_delete("/api/challenge/{challenge_id}", handle_delete_challenge)
+
+    app.router.add_route("OPTIONS", "/api/achievements/{telegram_id}", handle_options)
+    app.router.add_get("/api/achievements/{telegram_id}", handle_get_achievements)
 
     return app
