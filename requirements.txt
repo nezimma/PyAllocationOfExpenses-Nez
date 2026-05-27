@@ -53,6 +53,7 @@ faster-whisper
 # SpeechRecognition==3.14.5  # replaced by faster-whisper
 pytesseract
 Pillow
+reportlab
 standard-aifc==3.13.0
 standard-chunk==3.13.0
 trio==0.32.0

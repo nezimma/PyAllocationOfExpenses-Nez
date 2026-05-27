@@ -16,6 +16,7 @@ from database.text_parser import split_multi_expenses
 from cloud import disk
 from services.speech_service import SpeechRecognitionService
 from services import ocr_service
+from services import pdf_service
 import ml
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,33 @@ async def process_receipt_photo(message: types.Message, state: FSMContext, bot: 
     hint = "" if mode == "receipt" else "\n\n💡 Формат чека не распознан — применён универсальный парсер."
     await message.answer(
         f"📷 Чек обработан, записано {len(items)} позиций:\n{lines}{hint}"
+    )
+
+
+@router.message(F.text == "📄 PDF-отчёт")
+async def send_pdf_report(message: types.Message, bot: Bot):
+    """Генерирует PDF-отчёт за текущий месяц и отправляет файлом."""
+    now = datetime.now()
+    await message.answer("⏳ Генерирую отчёт...")
+
+    rows = await database.expenses.get_expenses(message.from_user.id)
+    username = message.from_user.username or message.from_user.first_name or "user"
+
+    loop = asyncio.get_running_loop()
+    pdf_bytes = await loop.run_in_executor(
+        None, pdf_service.generate_monthly_report, rows, username, now.year, now.month
+    )
+
+    month_names = [
+        "", "январь", "февраль", "март", "апрель", "май", "июнь",
+        "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+    ]
+    filename = f"report_{month_names[now.month]}_{now.year}.pdf"
+
+    from aiogram.types import BufferedInputFile
+    await message.answer_document(
+        BufferedInputFile(pdf_bytes, filename=filename),
+        caption=f"📄 Отчёт за {month_names[now.month]} {now.year}",
     )
 
 
