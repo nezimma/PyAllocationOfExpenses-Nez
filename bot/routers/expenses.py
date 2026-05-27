@@ -1,4 +1,5 @@
 # bot/routers/expenses.py — запись и просмотр расходов
+import io
 import os
 import asyncio
 import tempfile
@@ -14,6 +15,7 @@ import database
 from database.text_parser import split_multi_expenses
 from cloud import disk
 from services.speech_service import SpeechRecognitionService
+from services import ocr_service
 import ml
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,17 @@ async def menu_expenses(message: types.Message):
 async def start_recording(message: types.Message, state: FSMContext):
     await message.answer("Отправьте голосовое сообщение для записи расхода")
     await state.set_state(BotState.sell_state)
+
+
+@router.message(F.text == "📷 Фото чека")
+async def photo_hint(message: types.Message):
+    await message.answer(
+        "📷 Просто отправьте фото чека прямо в чат — бот автоматически распознает позиции и запишет расходы.\n\n"
+        "💡 Советы для лучшего результата:\n"
+        "• Снимайте при хорошем освещении\n"
+        "• Держите чек ровно, без складок\n"
+        "• Текст должен быть чётким и не смазанным"
+    )
 
 
 @router.message(BotState.sell_state, F.voice)
@@ -142,6 +155,79 @@ async def receive_manual_amount(message: types.Message, state: FSMContext):
     await database.expenses.save_expense_items(message.from_user.id, updated, audio_path)
     await state.clear()
     await message.answer(f"✅ Сумма {amount:.2f} сохранена!")
+
+
+@router.message(F.photo)
+async def process_receipt_photo(message: types.Message, state: FSMContext, bot: Bot):
+    """Обработка фото чека — OCR → построчный парсинг → ML-категоризация → сохранение."""
+    await message.answer("📷 Обрабатываю чек, подождите...")
+
+    # Берём фото максимального размера (последний элемент — самое большое)
+    photo = message.photo[-1]
+    file_info = await bot.get_file(photo.file_id)
+
+    buf = io.BytesIO()
+    await bot.download_file(file_info.file_path, destination=buf)
+    image_bytes = buf.getvalue()
+
+    # OCR в отдельном потоке (blocking)
+    loop = asyncio.get_running_loop()
+    try:
+        ocr_text = await loop.run_in_executor(None, ocr_service.recognize_receipt, image_bytes)
+    except RuntimeError as e:
+        await message.answer(f"❌ {e}")
+        return
+
+    if not ocr_text:
+        await message.answer("❌ Не удалось распознать текст. Попробуйте сфотографировать чётче при хорошем освещении.")
+        return
+
+    logger.info(f"OCR text: {ocr_text[:200]}")
+
+    # Сначала пробуем построчный парсер чека
+    receipt_items = await loop.run_in_executor(None, ocr_service.parse_receipt_text, ocr_text)
+
+    if receipt_items:
+        # Нашли позиции в формате чека
+        categories = await asyncio.gather(*[
+            _predict_async(name) for name, _ in receipt_items
+        ])
+        items = [(cat, name, amount) for (name, amount), cat in zip(receipt_items, categories)]
+        mode = "receipt"
+    else:
+        # Fallback: парсим как обычный текст (натурально написанный)
+        segments = await _split_async(ocr_text)
+        items = [
+            (category, desc, amount)
+            for (desc, amount, _), category in zip(
+                segments,
+                await asyncio.gather(*[_predict_async(_category_snippet(d, ocr_text)) for d, _, _ in segments]),
+            )
+        ]
+        mode = "text"
+
+    if not items:
+        await message.answer(
+            f"🔍 Распознан текст:\n<pre>{ocr_text[:400]}</pre>\n\n"
+            f"❌ Не удалось выделить позиции с суммами.",
+            parse_mode="HTML",
+        )
+        return
+
+    # Сохраняем OCR-текст в voice_message (поле audio_data = file_id фото)
+    await database.expenses.save_voice_message(ocr_text, file_info.file_path)
+
+    # Сохраняем расходы
+    await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
+
+    lines = "\n".join(
+        f"• {f'{amt:.2f}' if amt else '?'} BYN → «{cat}» ({desc})"
+        for cat, desc, amt in items
+    )
+    hint = "" if mode == "receipt" else "\n\n💡 Формат чека не распознан — применён универсальный парсер."
+    await message.answer(
+        f"📷 Чек обработан, записано {len(items)} позиций:\n{lines}{hint}"
+    )
 
 
 @router.message(F.text.lower() == "отчет по тратам")

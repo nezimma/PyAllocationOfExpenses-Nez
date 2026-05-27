@@ -19,7 +19,7 @@ def registration_kb() -> ReplyKeyboardMarkup:
 def expenses_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Создать запись")],
+            [KeyboardButton(text="Создать запись"), KeyboardButton(text="📷 Фото чека")],
             [KeyboardButton(text="Отчет по тратам")],
             [KeyboardButton(text="На главное меню")],
         ],
