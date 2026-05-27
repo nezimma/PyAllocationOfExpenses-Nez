@@ -17,6 +17,7 @@ from cloud import disk
 from services.speech_service import SpeechRecognitionService
 from services import ocr_service
 from services import pdf_service
+from services.currency_service import symbol as cur_symbol
 import ml
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
     if recognized in ("Не удалось распознать речь", "Ошибка сервиса распознавания речи"):
         await message.answer(f"❌ {recognized}")
     else:
+        preferred = await database.users.get_preferred_currency(message.from_user.id)
         segments = await _split_async(recognized)
         categories = await asyncio.gather(*[
             _predict_async(_category_snippet(desc, recognized))
@@ -90,14 +92,13 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
         ])
 
         items = [
-            (category, desc, amount)
-            for (desc, amount, _), category in zip(segments, categories)
+            (category, desc, amount, _resolve_currency(raw_cur, preferred))
+            for (desc, amount, raw_cur), category in zip(segments, categories)
         ]
 
         if len(items) == 1:
-            category, desc, amount = items[0]
+            category, desc, amount, currency = items[0]
             if amount is None:
-                # Не сохраняем — ждём сумму от пользователя
                 await message.answer(
                     f"🎤 Распознано: «{desc or recognized}» → категория «{category}»\n"
                     f"💬 Сумму не удалось определить. Введите сумму вручную (например: 150.50):"
@@ -106,13 +107,13 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
                 await state.update_data(pending_audio=file_info.file_path, pending_items=items)
                 return
             await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
-            await message.answer(f"🎤 Покупка записана в «{category}»")
+            await message.answer(f"🎤 Покупка записана в «{category}»: {amount:.2f} {cur_symbol(currency)}")
         else:
             await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
-            missing_count = sum(1 for _, _, amt in items if amt is None)
+            missing_count = sum(1 for _, _, amt, _ in items if amt is None)
             lines = "\n".join(
-                f"• {amt or '?'} → «{cat}» ({desc})"
-                for cat, desc, amt in items
+                f"• {f'{amt:.2f} {cur_symbol(cur)}' if amt else '?'} → «{cat}» ({desc})"
+                for cat, desc, amt, cur in items
             )
             await message.answer(f"🎤 Записано {len(items)} покупок:\n{lines}")
             if missing_count:
@@ -140,18 +141,17 @@ async def receive_manual_amount(message: types.Message, state: FSMContext):
         return
 
     data = await state.get_data()
-    items: list[tuple[str, str, float | None]] = data.get("pending_items", [])
+    items: list[tuple[str, str, float | None, str]] = data.get("pending_items", [])
     audio_path: str = data.get("pending_audio", "")
 
-    # Подставляем сумму в первую позицию без суммы
     updated = []
     filled = False
-    for cat, desc, amt in items:
+    for cat, desc, amt, cur in items:
         if amt is None and not filled:
-            updated.append((cat, desc, amount))
+            updated.append((cat, desc, amount, cur))
             filled = True
         else:
-            updated.append((cat, desc, amt))
+            updated.append((cat, desc, amt, cur))
 
     await database.expenses.save_expense_items(message.from_user.id, updated, audio_path)
     await state.clear()
@@ -188,22 +188,22 @@ async def process_receipt_photo(message: types.Message, state: FSMContext, bot: 
     # Сначала пробуем построчный парсер чека
     receipt_items = await loop.run_in_executor(None, ocr_service.parse_receipt_text, ocr_text)
 
+    preferred = await database.users.get_preferred_currency(message.from_user.id)
+
     if receipt_items:
-        # Нашли позиции в формате чека
         categories = await asyncio.gather(*[
             _predict_async(name) for name, _ in receipt_items
         ])
-        items = [(cat, name, amount) for (name, amount), cat in zip(receipt_items, categories)]
+        items = [(cat, name, amount, preferred) for (name, amount), cat in zip(receipt_items, categories)]
         mode = "receipt"
     else:
-        # Fallback: парсим как обычный текст (натурально написанный)
         segments = await _split_async(ocr_text)
+        categories_ocr = await asyncio.gather(*[
+            _predict_async(_category_snippet(d, ocr_text)) for d, _, _ in segments
+        ])
         items = [
-            (category, desc, amount)
-            for (desc, amount, _), category in zip(
-                segments,
-                await asyncio.gather(*[_predict_async(_category_snippet(d, ocr_text)) for d, _, _ in segments]),
-            )
+            (category, desc, amount, _resolve_currency(raw_cur, preferred))
+            for (desc, amount, raw_cur), category in zip(segments, categories_ocr)
         ]
         mode = "text"
 
@@ -222,8 +222,8 @@ async def process_receipt_photo(message: types.Message, state: FSMContext, bot: 
     await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
 
     lines = "\n".join(
-        f"• {f'{amt:.2f}' if amt else '?'} BYN → «{cat}» ({desc})"
-        for cat, desc, amt in items
+        f"• {f'{amt:.2f} {cur_symbol(cur)}' if amt else '?'} → «{cat}» ({desc})"
+        for cat, desc, amt, cur in items
     )
     hint = "" if mode == "receipt" else "\n\n💡 Формат чека не распознан — применён универсальный парсер."
     await message.answer(
@@ -265,13 +265,16 @@ async def report(message: types.Message):
         await message.answer("Расходов пока нет.")
         return
 
+    preferred = await database.users.get_preferred_currency(message.from_user.id)
+    sym = cur_symbol(preferred)
+
     for amount, desc, created_at, category in rows:
         dt = str(created_at)
         date_str, time_str = dt.split()[0], dt.split()[1][:5]
         await message.answer(
             f"💳 Категория: {category}\n"
             f"📄 Трата: {desc}\n"
-            f"💰 Сумма: {amount} BYN\n"
+            f"💰 Сумма: {amount} {sym}\n"
             f"🕒 {date_str} {time_str}"
         )
 
@@ -284,8 +287,19 @@ async def report(message: types.Message):
             total += amt
             by_category[category] = by_category.get(category, 0) + amt
 
-    summary = "\n".join(f"{cat}: {amt:.2f} BYN" for cat, amt in by_category.items())
-    await message.answer(f"{summary}\nВсего потрачено: {total:.2f} BYN")
+    summary = "\n".join(f"{cat}: {amt:.2f} {sym}" for cat, amt in by_category.items())
+    await message.answer(f"{summary}\nВсего потрачено: {total:.2f} {sym}")
+
+
+def _resolve_currency(raw: str | None, preferred: str) -> str:
+    """
+    Natasha возвращает 'RUB' для слова 'рублей' даже в беларусском контексте.
+    Если пользователь из РБ (preferred=BYN) и парсер вернул RUB — считаем BYN.
+    Явно иностранные валюты (USD, EUR, ...) оставляем как есть.
+    """
+    if raw is None or raw == "RUB":
+        return preferred
+    return raw
 
 
 def _category_snippet(desc: str, fallback: str) -> str:

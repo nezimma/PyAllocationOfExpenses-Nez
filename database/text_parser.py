@@ -208,21 +208,28 @@ def split_multi_expenses(text: str) -> list[tuple[str, float | None, str | None]
         return [(text, None, None)]
 
     if len(matches) == 1:
-        # Проверяем: может быть второй расход с голым числом после глагола-разделителя
+        # Проверяем: может быть второй расход после глагола-разделителя
         _, end1 = _get_span(matches[0])
         rest = text[end1:]
         verb_m = re.search(rf'\b(?:{_ACTION_VERBS})\b', rest, re.IGNORECASE)
         if verb_m:
             second_part = rest[verb_m.start():].strip()
+            # Сначала ищем голое число (за 80, на 150)
             bare_amt = _bare_amount(second_part)
+            bare_curr = None
+            bare_desc2 = None
+            if bare_amt is None:
+                # Fallback: natasha — обрабатывает "на восемьдесят рублей" и т.п.
+                bare_desc2, bare_amt, bare_curr = split_text_and_amount(second_part)
             if bare_amt is not None:
-                # Первый расход — всё до начала глагола в хвосте
                 first_text = text[:end1 + verb_m.start()].strip()
                 desc1, amount1, currency1 = split_text_and_amount(first_text)
-                # Второй — описание без суммы, сумма из bare_amount
-                desc2 = _BARE_AMOUNT_RE.sub("", second_part).strip(" ,.")
-                desc2 = _clean_desc(desc2) or second_part
-                return [(desc1, amount1, currency1), (desc2, bare_amt, None)]
+                if bare_desc2 is not None:
+                    desc2 = bare_desc2
+                else:
+                    desc2 = _BARE_AMOUNT_RE.sub("", second_part).strip(" ,.")
+                    desc2 = _clean_desc(desc2) or second_part
+                return [(desc1, amount1, currency1), (desc2, bare_amt, bare_curr)]
 
         desc, amount, currency = split_text_and_amount(text)
         return [(desc, amount, currency)]

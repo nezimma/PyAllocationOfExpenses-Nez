@@ -4,6 +4,7 @@ from datetime import date, time as dtime
 from aiohttp import web
 import database
 from services.scheduler_utils import calc_next_fire, get_tz
+from services import currency_service
 
 logger = logging.getLogger(__name__)
 
@@ -199,10 +200,32 @@ async def handle_toggle_reminder(request: web.Request) -> web.Response:
     ))
 
 
+# ── Currency rates ────────────────────────────────────────────────────────────
+
+async def handle_rates(request: web.Request) -> web.Response:
+    try:
+        rates = await currency_service.get_rates()
+        payload = {
+            "base": "BYN",
+            "rates": rates,
+            "symbols": currency_service.CURRENCY_SYMBOLS,
+        }
+        return _cors(web.Response(
+            content_type="application/json",
+            text=json.dumps(payload, ensure_ascii=False),
+        ))
+    except Exception as e:
+        logger.error(f"handle_rates error: {e}")
+        return _cors(web.Response(status=500, text="rates error"))
+
+
 # ── App factory ───────────────────────────────────────────────────────────────
 
 def create_app() -> web.Application:
     app = web.Application()
+
+    app.router.add_route("OPTIONS", "/api/rates", handle_options)
+    app.router.add_get("/api/rates", handle_rates)
 
     app.router.add_route("OPTIONS", "/api/expenses/{telegram_id}", handle_options)
     app.router.add_get("/api/expenses/{telegram_id}", handle_expenses)

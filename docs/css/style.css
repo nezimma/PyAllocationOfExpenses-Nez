@@ -251,6 +251,40 @@ ul { list-style: none; }
 }
 
 /* ═══════════════════════════════════════════════
+   CURRENCY SWITCHER
+═══════════════════════════════════════════════ */
+.currency-switcher {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 12px;
+  align-items: center;
+}
+
+.currency-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.12s;
+}
+
+.currency-btn:active {
+  transform: scale(0.95);
+}
+
+.currency-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════
    PERIOD NAVIGATION
 ═══════════════════════════════════════════════ */
 .period-nav {

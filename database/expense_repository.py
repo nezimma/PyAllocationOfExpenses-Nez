@@ -61,7 +61,7 @@ class ExpenseRepository:
     async def save_expense_items(
         self,
         telegram_id: int,
-        items: list[tuple[str, str, float | None]],
+        items: list[tuple[str, str, float | None, str]],
         audio_data: str,
     ):
         async with self.pool.acquire() as conn:
@@ -76,15 +76,15 @@ class ExpenseRepository:
             voice_id = voice_row["voice_id"]
 
             async with conn.transaction():
-                for category, desc, amount in items:
+                for category, desc, amount, currency in items:
                     category = _normalize_category(category)
                     category_id = await conn.fetchval(
                         "SELECT category_id FROM categories WHERE name = $1", category
                     )
                     await conn.execute(
-                        "INSERT INTO expenses (user_id, category_id, voice_id, amount, description) "
-                        "VALUES ($1, $2, $3, $4, $5)",
-                        user_id, category_id, voice_id, amount, desc,
+                        "INSERT INTO expenses (user_id, category_id, voice_id, amount, description, currency) "
+                        "VALUES ($1, $2, $3, $4, $5, $6)",
+                        user_id, category_id, voice_id, amount, desc, currency or "BYN",
                     )
 
     async def get_expenses(self, telegram_id: int) -> list[tuple]:
@@ -103,7 +103,8 @@ class ExpenseRepository:
     async def get_expenses_for_api(self, telegram_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                """SELECT ex.description, c.name, ex.amount, ex.created_at
+                """SELECT ex.expense_id, ex.description, c.name, ex.amount, ex.created_at,
+                          COALESCE(ex.currency, 'BYN') AS currency
                    FROM expenses ex
                    JOIN users u ON ex.user_id = u.user_id
                    LEFT JOIN categories c ON ex.category_id = c.category_id
@@ -113,11 +114,12 @@ class ExpenseRepository:
             )
             return [
                 {
-                    "id":     i + 1,
-                    "name":   row["description"] or "",
-                    "cat":    _CATEGORY_TO_KEY.get(row["name"], "other"),
-                    "amount": float(row["amount"]) if row["amount"] else 0.0,
-                    "date":   row["created_at"].isoformat() if row["created_at"] else None,
+                    "id":       row["expense_id"],
+                    "name":     row["description"] or "",
+                    "cat":      _CATEGORY_TO_KEY.get(row["name"], "other"),
+                    "amount":   float(row["amount"]) if row["amount"] else 0.0,
+                    "currency": row["currency"],
+                    "date":     row["created_at"].isoformat() if row["created_at"] else None,
                 }
-                for i, row in enumerate(rows)
+                for row in rows
             ]

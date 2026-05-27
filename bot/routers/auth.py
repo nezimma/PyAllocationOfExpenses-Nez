@@ -7,6 +7,7 @@ from timezonefinder import TimezoneFinder
 from bot.states import BotState
 from bot.keyboards import registration_kb, main_menu, location_kb
 import database
+from services.currency_service import timezone_to_currency, symbol as cur_symbol
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -57,9 +58,12 @@ async def on_location(message: types.Message, state: FSMContext):
     tz_str = _tf.timezone_at(lat=lat, lng=lng)
 
     if tz_str:
+        currency = timezone_to_currency(tz_str)
         await database.users.set_timezone(message.from_user.id, tz_str)
+        await database.users.set_preferred_currency(message.from_user.id, currency)
         await message.answer(
             f"✅ Часовой пояс определён: {tz_str}\n"
+            f"💱 Валюта по умолчанию: {currency} ({cur_symbol(currency)})\n"
             "Напоминания будут приходить точно по вашему времени.",
             reply_markup=main_menu(),
         )

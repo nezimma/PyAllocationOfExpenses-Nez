@@ -6,7 +6,8 @@ let state = {
   multiSelect: false,
   sort: 'date-desc',
   editingId: null,
-  periodOffset: 0,  // 0 = current period, -1 = previous, etc.
+  periodOffset: 0,
+  currency: 'BYN',
 };
 
 // ── Telegram Mini App init ──
@@ -23,6 +24,17 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   const curr = document.documentElement.dataset.theme;
   document.documentElement.dataset.theme = curr === 'dark' ? 'light' : 'dark';
   renderChart(currentChartType, getFiltered(), getActivePeriod());
+});
+
+// ── Currency switcher ──
+document.getElementById('currencySwitcher').addEventListener('click', e => {
+  const btn = e.target.closest('.currency-btn');
+  if (!btn) return;
+  state.currency = btn.dataset.currency;
+  document.querySelectorAll('.currency-btn').forEach(b => b.classList.toggle('active', b === btn));
+  const sym = CURRENCY_SYMBOLS[state.currency] || state.currency;
+  document.getElementById('totalCurrencySymbol').textContent = sym;
+  render();
 });
 
 // ── Period buttons ──
@@ -215,7 +227,7 @@ function updateDelta() {
 
   const sumPeriod = (s, e) =>
     EXPENSES.filter(exp => { const d = new Date(exp.date); return d >= s && d <= e; })
-            .reduce((acc, exp) => acc + exp.amount, 0);
+            .reduce((acc, exp) => acc + displayAmount(exp), 0);
 
   const current  = sumPeriod(s1, e1);
   const previous = sumPeriod(s2, e2);
@@ -247,8 +259,9 @@ function render() {
   renderChart(currentChartType, filtered, period);
   renderList(filtered);
 
-  const total = filtered.reduce((a, e) => a + e.amount, 0);
-  document.getElementById('totalAmount').textContent = total.toLocaleString('ru-RU');
+  const total = filtered.reduce((a, e) => a + displayAmount(e), 0);
+  document.getElementById('totalAmount').textContent = total.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  document.getElementById('totalCurrencySymbol').textContent = CURRENCY_SYMBOLS[state.currency] || state.currency;
   document.getElementById('expensesCount').textContent =
     filtered.length + ' ' + pluralize(filtered.length, 'запись', 'записи', 'записей');
 
@@ -284,7 +297,7 @@ function renderList(items) {
           </div>
         </div>
         <div class="expense-item__right">
-          <div class="expense-item__amount">${e.amount.toLocaleString('ru-RU')} Br</div>
+          <div class="expense-item__amount">${displayAmount(e).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS[state.currency] || state.currency}</div>
           <div class="expense-item__time">${dateStr}, ${timeStr}</div>
         </div>
         <span class="expense-item__edit-hint">✎</span>

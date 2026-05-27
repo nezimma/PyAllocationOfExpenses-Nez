@@ -41,3 +41,17 @@ class UserRepository:
                 "UPDATE users SET timezone = $1 WHERE telegram_id = $2",
                 timezone_str, telegram_id,
             )
+
+    async def get_preferred_currency(self, telegram_id: int) -> str:
+        async with self.pool.acquire() as conn:
+            val = await conn.fetchval(
+                "SELECT preferred_currency FROM users WHERE telegram_id = $1", telegram_id
+            )
+            return val or "BYN"
+
+    async def set_preferred_currency(self, telegram_id: int, currency: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET preferred_currency = $1 WHERE telegram_id = $2",
+                currency, telegram_id,
+            )

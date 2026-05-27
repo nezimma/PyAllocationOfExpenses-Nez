@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 #   base  ~145MB — быстро, приемлемо
 #   small ~460MB — хорошо для русского, ~10-20 сек на 30 сек аудио  ← рекомендуется
 #   medium ~1.5GB — отлично, но медленно без GPU
-_MODEL_NAME = "small"
+_MODEL_NAME = "medium"
 _DEVICE = "cpu"
 _COMPUTE_TYPE = "int8"  # int8 экономит RAM и ускоряет инференс на CPU
 
@@ -67,6 +67,8 @@ class SpeechRecognitionService:
                 vad_filter=True,                          # убирает тишину/фоновый шум
                 vad_parameters={"min_silence_duration_ms": 500},
                 temperature=0.0,                          # детерминированный результат
+                initial_prompt="Расходы, покупки, платежи, рублей.",
+                condition_on_previous_text=False,         # предотвращает накопление галлюцинаций
             )
             # segments — генератор, обходим один раз
             text = " ".join(seg.text for seg in segments).strip()

@@ -57,11 +57,19 @@
 <!-- ────── TOTAL CARD ────── -->
 <section class="total-card">
   <div class="total-card__label">Всего потрачено</div>
-  <div class="total-card__amount"><span id="totalAmount">47 830</span> <span class="total-card__currency">Br</span></div>
+  <div class="total-card__amount"><span id="totalAmount">47 830</span> <span class="total-card__currency" id="totalCurrencySymbol">Br</span></div>
   <div class="total-card__delta">
     <span class="delta delta--up">↑ 12%</span> по сравнению с прошлым периодом
   </div>
 </section>
+
+<!-- ────── CURRENCY SWITCHER ────── -->
+<div class="currency-switcher" id="currencySwitcher">
+  <button class="currency-btn active" data-currency="BYN">Br</button>
+  <button class="currency-btn" data-currency="USD">$</button>
+  <button class="currency-btn" data-currency="EUR">€</button>
+  <button class="currency-btn" data-currency="RUB">₽</button>
+</div>
 
 <!-- ────── CHART TABS ────── -->
 <section class="charts-section">
