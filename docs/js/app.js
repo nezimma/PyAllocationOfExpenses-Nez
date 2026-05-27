@@ -268,7 +268,7 @@ function renderList(items) {
   }
 
   ul.innerHTML = items.map((e, i) => {
-    const cat = CATEGORIES[e.cat];
+    const cat = CATEGORIES[e.cat] ?? CATEGORIES['other'];
     const dt = new Date(e.date);
     const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     const dateStr = dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });

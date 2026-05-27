@@ -13,6 +13,8 @@ const CATEGORIES = {
   education:     { label: 'Образование',           emoji: '📚', color: '#98D8C8' },
   entertainment: { label: 'Развлечения',           emoji: '🎮', color: '#F7DC6F' },
   health:        { label: 'Красота и здоровье',    emoji: '💊', color: '#F1948A' },
+  // Fallback — никогда не должен появляться при корректном маппинге на бэкенде
+  other:         { label: 'Прочее',                emoji: '💰', color: '#AAAAAA' },
 };
 
 // Заполняется из API; mock-данные используются как запасной вариант
