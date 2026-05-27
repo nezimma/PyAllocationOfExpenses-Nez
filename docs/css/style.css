@@ -1029,6 +1029,109 @@ ul { list-style: none; }
 }
 
 /* ═══════════════════════════════════════════════
+   RECURRING PAYMENTS
+═══════════════════════════════════════════════ */
+.recurring-section {
+  margin: 8px 16px 24px;
+}
+
+.recurring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.recurring-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.recurring-monthly {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.recurring-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recurring-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--accent);
+  transition: opacity 0.15s;
+}
+
+.recurring-item--weekly  { border-left-color: #4ECDC4; }
+.recurring-item--monthly { border-left-color: var(--accent); }
+.recurring-item--yearly  { border-left-color: #F7DC6F; }
+
+.recurring-item__emoji {
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.recurring-item__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.recurring-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recurring-item__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.recurring-item__right {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.recurring-item__amount {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.recurring-item__next {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.recurring-item__next--soon   { color: #F44336; font-weight: 600; }
+.recurring-item__next--normal { color: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════
    SCROLLBAR STYLING
 ═══════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 4px; height: 4px; }

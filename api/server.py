@@ -6,6 +6,7 @@ import database
 from services.scheduler_utils import calc_next_fire, get_tz
 from services import currency_service
 from services import forecast_service
+from services import recurring_service
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,25 @@ async def handle_delete_expense(request: web.Request) -> web.Response:
         return _cors(web.Response(status=500, text=str(e)))
 
 
+# ── Recurring payments ────────────────────────────────────────────────────────
+
+async def handle_recurring(request: web.Request) -> web.Response:
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid telegram_id"))
+    try:
+        expenses = await database.expenses.get_expenses_for_api(telegram_id)
+        result = recurring_service.detect_recurring(expenses)
+        return _cors(web.Response(
+            content_type="application/json",
+            text=json.dumps(result, ensure_ascii=False, default=str),
+        ))
+    except Exception as e:
+        logger.error(f"handle_recurring error: {e}")
+        return _cors(web.Response(status=500, text="error"))
+
+
 # ── Budget forecast ───────────────────────────────────────────────────────────
 
 async def handle_forecast(request: web.Request) -> web.Response:
@@ -309,6 +329,9 @@ def create_app() -> web.Application:
 
     app.router.add_route("OPTIONS", "/api/forecast/{telegram_id}", handle_options)
     app.router.add_get("/api/forecast/{telegram_id}", handle_forecast)
+
+    app.router.add_route("OPTIONS", "/api/recurring/{telegram_id}", handle_options)
+    app.router.add_get("/api/recurring/{telegram_id}", handle_recurring)
 
     app.router.add_route("OPTIONS", "/api/expense/{expense_id}", handle_options)
     app.router.add_put("/api/expense/{expense_id}", handle_update_expense)

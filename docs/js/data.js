@@ -92,6 +92,22 @@ const MOCK_EXPENSES = [
   { id: 24, name: 'Посидел в Beermania',                      cat: 'restaurants',   amount: 42,  currency: 'BYN', date: '2025-03-12T20:30' },
 ];
 
+// Регулярные платежи — заполняется из API
+let RECURRING = [];
+
+async function loadRecurring(userId) {
+  try {
+    const resp = await fetch(`${API_BASE}/api/recurring/${userId}`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+    });
+    if (!resp.ok) return [];
+    return await resp.json();
+  } catch (e) {
+    console.warn('Recurring API недоступен:', e);
+    return [];
+  }
+}
+
 // Прогноз — заполняется из API или строится из локальных данных
 let FORECAST = null;
 
@@ -110,29 +126,115 @@ async function loadForecast(userId) {
   }
 }
 
+// Жильё и образование — разовые в месяц, не экстраполируем вперёд
+const _FIXED_CATS = new Set(['housing', 'education']);
+
+// Статические веса — fallback пока истории < 2 месяцев
+const _BASE_WEIGHTS = {
+  restaurants:   1.0,
+  transport:     1.0,
+  entertainment: 0.9,
+  health:        0.9,
+  household:     0.8,
+  clothes:       0.6,
+  electronics:   0.4,
+  education:     0.0,
+  housing:       0.0,
+  other:         0.7,
+};
+
+/**
+ * Считает динамические веса категорий из истории:
+ * вес = (кол-во месяцев с тратой в категории) / (всего уникальных месяцев в истории)
+ * Возвращает null если истории меньше 2 месяцев.
+ */
+function _calcDynamicWeights(excludeYear, excludeMonth) {
+  // Берём только прошлые месяцы (не текущий)
+  const history = EXPENSES.filter(e => {
+    const d = new Date(e.date);
+    return !(d.getFullYear() === excludeYear && d.getMonth() + 1 === excludeMonth);
+  });
+  if (!history.length) return null;
+
+  // Уникальные месяцы в истории
+  const monthKeys = new Set(history.map(e => {
+    const d = new Date(e.date);
+    return `${d.getFullYear()}-${d.getMonth()}`;
+  }));
+  const totalMonths = monthKeys.size;
+  if (totalMonths < 2) return null; // мало истории — используем fallback
+
+  // Для каждой категории — в скольких месяцах встречалась
+  const catMonthKeys = {};
+  history.forEach(e => {
+    const d = new Date(e.date);
+    const key = `${e.cat}|${d.getFullYear()}-${d.getMonth()}`;
+    catMonthKeys[key] = true;
+  });
+
+  const catCounts = {};
+  Object.keys(catMonthKeys).forEach(key => {
+    const cat = key.split('|')[0];
+    catCounts[cat] = (catCounts[cat] || 0) + 1;
+  });
+
+  const weights = {};
+  Object.entries(catCounts).forEach(([cat, months]) => {
+    weights[cat] = Math.min(1.0, months / totalMonths);
+  });
+  return weights;
+}
+
 function buildLocalForecast() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
+  const today = now.getDate();
+  const daysInMonth = new Date(year, month, 0).getDate();
+
   const currentMonthExpenses = EXPENSES.filter(e => {
     const d = new Date(e.date);
     return d.getFullYear() === year && d.getMonth() + 1 === month;
   });
-  if (currentMonthExpenses.length === 0) return null;
+  if (currentMonthExpenses.length < 3) return null;
 
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const today = now.getDate();
   const totalSpent = currentMonthExpenses.reduce((s, e) => s + displayAmount(e), 0);
-  const dailyAvg = totalSpent / today;
-  const forecastTotal = dailyAvg * daysInMonth;
+  const remainingDays = Math.max(0, daysInMonth - today);
+
+  // Пробуем динамические веса, иначе — статические
+  const dynWeights = _calcDynamicWeights(year, month);
+  const getWeight = cat => {
+    if (_FIXED_CATS.has(cat)) return 0;
+    if (dynWeights) return dynWeights[cat] ?? _BASE_WEIGHTS[cat] ?? 0.5;
+    return _BASE_WEIGHTS[cat] ?? 0.5;
+  };
+
+  // Прогноз переменных расходов: по каждой категории отдельно с её весом
+  const cats = [...new Set(currentMonthExpenses.map(e => e.cat))];
+  let forecastVariable = 0;
+  let totalVariableAvg = 0;
+
+  cats.forEach(cat => {
+    if (_FIXED_CATS.has(cat)) return;
+    const catSum = currentMonthExpenses
+      .filter(e => e.cat === cat)
+      .reduce((s, e) => s + displayAmount(e), 0);
+    const catDailyAvg = today > 0 ? catSum / today : 0;
+    const weight = getWeight(cat);
+    forecastVariable += catDailyAvg * weight * remainingDays;
+    totalVariableAvg += catDailyAvg;
+  });
+
+  const forecastTotal = totalSpent + forecastVariable;
 
   return {
-    total_spent: totalSpent,
+    total_spent:    totalSpent,
     forecast_total: forecastTotal,
-    daily_avg: dailyAvg,
-    days_elapsed: today,
-    days_in_month: daysInMonth,
-    enough_data: currentMonthExpenses.length >= 3,
+    daily_avg:      totalVariableAvg,
+    days_elapsed:   today,
+    days_in_month:  daysInMonth,
+    enough_data:    true,
+    using_dynamic:  dynWeights !== null,  // для отладки
   };
 }
 
@@ -158,23 +260,55 @@ async function loadExpenses() {
       }
     })(),
     loadRates(),
-    (async () => { FORECAST = await loadForecast(userId); })(),
+    (async () => { FORECAST   = await loadForecast(userId); })(),
+    (async () => { RECURRING  = await loadRecurring(userId); })(),
   ]);
 }
 
 // Chart aggregation helpers — используют displayAmount для конвертации
-function getBarData(expenses) {
-  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-  const sums = new Array(7).fill(0);
+
+const _MONTH_LABELS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+function getBarData(expenses, period = 'week') {
+  if (period === 'week') {
+    const labels = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    const sums = new Array(7).fill(0);
+    expenses.forEach(e => {
+      sums[(new Date(e.date).getDay() + 6) % 7] += displayAmount(e);
+    });
+    return { labels, data: sums };
+  }
+
+  if (period === 'month') {
+    // Определяем нужный месяц из данных или из текущей даты
+    const ref = expenses.length > 0 ? new Date(expenses[0].date) : new Date();
+    const daysInMonth = new Date(ref.getFullYear(), ref.getMonth() + 1, 0).getDate();
+    const sums = new Array(daysInMonth).fill(0);
+    expenses.forEach(e => {
+      sums[new Date(e.date).getDate() - 1] += displayAmount(e);
+    });
+    return {
+      labels: Array.from({ length: daysInMonth }, (_, i) => String(i + 1)),
+      data: sums,
+    };
+  }
+
+  // year → группируем по месяцам
+  const sums = new Array(12).fill(0);
   expenses.forEach(e => {
-    const d = new Date(e.date);
-    const dow = (d.getDay() + 6) % 7;
-    sums[dow] += displayAmount(e);
+    sums[new Date(e.date).getMonth()] += displayAmount(e);
   });
-  return { labels: days, data: sums };
+  return { labels: _MONTH_LABELS, data: sums };
 }
 
-function getLineData(expenses) {
+function getLineData(expenses, period = 'week') {
+  if (period === 'year') {
+    // Год → 12 точек по месяцам
+    const sums = new Array(12).fill(0);
+    expenses.forEach(e => { sums[new Date(e.date).getMonth()] += displayAmount(e); });
+    return { labels: _MONTH_LABELS, data: sums };
+  }
+  // Неделя / месяц → группируем по дате
   const byDate = {};
   expenses.forEach(e => {
     const key = e.date.slice(0, 10);
@@ -182,8 +316,8 @@ function getLineData(expenses) {
   });
   const sorted = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0]));
   return {
-    labels: sorted.map(([d]) => d.slice(5)),
-    data: sorted.map(([, v]) => v)
+    labels: sorted.map(([d]) => period === 'month' ? d.slice(8) : d.slice(5)),
+    data: sorted.map(([, v]) => v),
   };
 }
 

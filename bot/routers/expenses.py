@@ -19,6 +19,7 @@ from services import ocr_service
 from services import pdf_service
 from services.currency_service import symbol as cur_symbol, get_rates, convert
 from services import forecast_service
+from services import recurring_service
 import ml
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,77 @@ async def process_receipt_photo(message: types.Message, state: FSMContext, bot: 
     await message.answer(
         f"📷 Чек обработан, записано {len(items)} позиций:\n{lines}{hint}"
     )
+
+
+@router.message(F.text == "🔄 Подписки")
+async def send_recurring(message: types.Message):
+    """Показывает обнаруженные регулярные платежи."""
+    preferred = await database.users.get_preferred_currency(message.from_user.id)
+    sym = cur_symbol(preferred)
+
+    expenses = await database.expenses.get_expenses_for_api(message.from_user.id)
+    if not expenses:
+        await message.answer("📭 Расходов пока нет — нечего анализировать.")
+        return
+
+    found = recurring_service.detect_recurring(expenses)
+
+    if not found:
+        await message.answer(
+            "🔍 Регулярных платежей не обнаружено.\n\n"
+            "Бот ищет траты, которые повторяются каждые ~7, ~30 или ~365 дней. "
+            "Добавь больше записей — паттерн появится автоматически."
+        )
+        return
+
+    cat_emoji = {
+        "restaurants": "🍽", "transport": "🚗", "housing": "🏠",
+        "clothes": "👗", "household": "🧹", "electronics": "💻",
+        "education": "📚", "entertainment": "🎮", "health": "💊",
+    }
+
+    period_header = {"monthly": "📅 Ежемесячные", "weekly": "📅 Еженедельные", "yearly": "📅 Ежегодные"}
+    rates = await get_rates()
+
+    lines_by_period: dict[str, list[str]] = {}
+    for item in found:
+        p = item["period_key"]
+        amount = convert(item["avg_amount"], item["currency"], preferred, rates)
+        next_d = item["next_expected"]
+        next_str = ""
+        if next_d:
+            from datetime import date as _date
+            delta = (_date.fromisoformat(next_d) - _date.today()).days
+            if delta < 0:
+                next_str = " (просрочен!)"
+            elif delta == 0:
+                next_str = " (сегодня!)"
+            elif delta <= 3:
+                next_str = f" (через {delta} дн.)"
+            else:
+                next_str = f" (через {delta} дн.)"
+
+        emoji = cat_emoji.get(item["cat"], "💳")
+        line = f"{emoji} {item['description']} — ~{amount:.0f} {sym}{next_str}"
+        lines_by_period.setdefault(p, []).append(line)
+
+    total_monthly = sum(
+        convert(i["avg_amount"], i["currency"], preferred, rates)
+        for i in found if i["period_key"] == "monthly"
+    )
+
+    text = f"🔄 Регулярные платежи — обнаружено {len(found)}\n"
+    for period_key in ("monthly", "weekly", "yearly"):
+        if period_key not in lines_by_period:
+            continue
+        text += f"\n{period_header[period_key]}:\n"
+        text += "\n".join(f"  • {l}" for l in lines_by_period[period_key])
+        text += "\n"
+
+    if total_monthly > 0:
+        text += f"\n💸 Итого ежемесячно: ~{total_monthly:.0f} {sym}"
+
+    await message.answer(text)
 
 
 @router.message(F.text == "📈 Прогноз")

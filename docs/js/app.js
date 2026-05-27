@@ -257,6 +257,7 @@ function render() {
   document.getElementById('periodNext').disabled = state.periodOffset >= 0;
 
   renderForecast();
+  renderRecurring();
   renderChart(currentChartType, filtered, period);
   renderList(filtered);
 
@@ -417,6 +418,72 @@ document.getElementById('modalDelete').addEventListener('click', async function(
     console.warn('Не удалось удалить запись:', e);
   }
 });
+
+// ── Recurring payments ──
+function renderRecurring() {
+  const section = document.getElementById('recurringSection');
+  const list    = document.getElementById('recurringList');
+  if (!section || !list) return;
+
+  const items = (typeof RECURRING !== 'undefined') ? RECURRING : [];
+  if (!items.length) { section.style.display = 'none'; return; }
+
+  const sym  = CURRENCY_SYMBOLS[state.currency] || state.currency;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const catEmoji = {
+    restaurants: '🍽', transport: '🚗', housing: '🏠',
+    household: '🧹', clothes: '👗', electronics: '💻',
+    education: '📚', entertainment: '🎮', health: '💊', other: '💳',
+  };
+
+  const periodLabel = { weekly: 'Еженедельно', monthly: 'Ежемесячно', yearly: 'Ежегодно' };
+
+  let totalMonthly = 0;
+
+  list.innerHTML = items.map(item => {
+    const amount = convertAmount(item.avg_amount, item.currency || 'BYN', state.currency);
+    if (item.period_key === 'monthly')  totalMonthly += amount;
+    if (item.period_key === 'weekly')   totalMonthly += amount * 4.3;
+    if (item.period_key === 'yearly')   totalMonthly += amount / 12;
+
+    let nextStr = '', nextClass = 'recurring-item__next--normal';
+    if (item.next_expected) {
+      const next = new Date(item.next_expected);
+      next.setHours(0, 0, 0, 0);
+      const days = Math.round((next - today) / 86400000);
+      if (days < 0)       { nextStr = 'просрочен!';          nextClass = 'recurring-item__next--soon'; }
+      else if (days === 0) { nextStr = 'сегодня!';            nextClass = 'recurring-item__next--soon'; }
+      else if (days <= 5)  { nextStr = `через ${days} дн.`;  nextClass = 'recurring-item__next--soon'; }
+      else                 { nextStr = `через ${days} дн.`;  nextClass = 'recurring-item__next--normal'; }
+    }
+
+    const emoji = catEmoji[item.cat] || '💳';
+    const label = periodLabel[item.period_key] || item.period_key;
+
+    return `
+      <li class="recurring-item recurring-item--${item.period_key}">
+        <div class="recurring-item__emoji">${emoji}</div>
+        <div class="recurring-item__info">
+          <div class="recurring-item__name">${item.description}</div>
+          <div class="recurring-item__meta">${label} · ${item.count}× замечено</div>
+        </div>
+        <div class="recurring-item__right">
+          <div class="recurring-item__amount">~${amount.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ${sym}</div>
+          ${nextStr ? `<div class="recurring-item__next ${nextClass}">${nextStr}</div>` : ''}
+        </div>
+      </li>`;
+  }).join('');
+
+  // Обновляем итог ежемесячных
+  const monthlyEl = document.getElementById('recurringMonthly');
+  if (monthlyEl && totalMonthly > 0) {
+    monthlyEl.textContent = `~${totalMonthly.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ${sym}/мес`;
+  }
+
+  section.style.display = 'block';
+}
 
 // ── Forecast card ──
 function renderForecast() {
