@@ -74,11 +74,11 @@ async function loadReminders() {
 }
 
 // ── Page navigation ──
-const expensesPage   = document.getElementById('expensesPage');
-const remindersPage  = document.getElementById('remindersPage');
-const challengesPage = document.getElementById('challengesPage');
+const expensesPage  = document.getElementById('expensesPage');
+const remindersPage = document.getElementById('remindersPage');
+const petPage       = document.getElementById('petPage');
 const expensePeriodControls = document.getElementById('expensePeriodControls');
-const headerTitle    = document.getElementById('headerTitle');
+const headerTitle   = document.getElementById('headerTitle');
 
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -88,7 +88,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     const page = tab.dataset.page;
     expensesPage.classList.toggle('hidden', page !== 'expenses');
     remindersPage.classList.toggle('hidden', page !== 'reminders');
-    if (challengesPage) challengesPage.classList.toggle('hidden', page !== 'challenges');
+    if (petPage) petPage.classList.toggle('hidden', page !== 'pet');
     expensePeriodControls.style.display = page === 'expenses' ? '' : 'none';
 
     if (page === 'expenses') {
@@ -96,9 +96,9 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     } else if (page === 'reminders') {
       headerTitle.textContent = 'Напоминания';
       loadReminders();
-    } else if (page === 'challenges') {
-      headerTitle.textContent = 'Вызовы';
-      loadChallenges();
+    } else if (page === 'pet') {
+      headerTitle.textContent = 'Питомец';
+      loadPetPage();
     }
   });
 });

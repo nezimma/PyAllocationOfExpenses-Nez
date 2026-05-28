@@ -1846,3 +1846,283 @@ ul { list-style: none; }
 .challenges-list {
   padding-top: 4px;
 }
+
+/* ═══════════════════════════════════════════════
+   PET PAGE
+═══════════════════════════════════════════════ */
+
+/* ── Pet card ── */
+.pet-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 12px 12px 8px;
+  padding: 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.pet-card::before {
+  content: '';
+  position: absolute;
+  top: -24px; right: -24px;
+  width: 100px; height: 100px;
+  background: radial-gradient(circle, rgba(124,111,247,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.pet-card__alien-wrap {
+  flex-shrink: 0;
+  width: 70px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pet-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pet-card__level {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.pet-card__stage {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.pet-card__xp-track {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.pet-card__xp-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 0%;
+}
+
+.pet-card__xp-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  text-align: right;
+}
+
+.pet-card__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pet-card__streak {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pet-card__week {
+  display: flex;
+  gap: 5px;
+}
+
+.pw-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.pw-dot--filled {
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(124, 111, 247, 0.6);
+}
+
+/* ── Mini alien base ── */
+.mini-alien {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: ma-float 3.4s ease-in-out infinite;
+}
+
+@keyframes ma-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+/* Antenna */
+.ma-ant {
+  position: relative;
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  margin-bottom: -2px;
+  z-index: 2;
+}
+
+.ma-orb {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Head */
+.ma-head {
+  position: relative;
+  width: 52px;
+  height: 44px;
+  border-radius: 50% 50% 44% 44%;
+  z-index: 2;
+}
+
+/* Eyes */
+.ma-eye {
+  position: absolute;
+  top: 30%;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: ma-blink 5s ease-in-out infinite;
+  overflow: hidden;
+}
+.ma-eye--l { left: 15%; }
+.ma-eye--r { right: 15%; }
+
+@keyframes ma-blink {
+  0%, 88%, 100% { transform: scaleY(1); }
+  93%            { transform: scaleY(0.08); }
+}
+
+.ma-pupil {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Mouth */
+.ma-mouth {
+  position: absolute;
+  bottom: 16%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 0;
+  border: 2px solid rgba(0,0,0,0.3);
+  border-top-color: transparent;
+  border-radius: 0 0 16px 16px;
+}
+
+/* Body */
+.ma-body {
+  position: relative;
+  width: 28px;
+  height: 18px;
+  border-radius: 50%;
+  margin-top: -3px;
+  z-index: 1;
+}
+
+/* Arms */
+.ma-arm {
+  position: absolute;
+  width: 10px;
+  height: 4px;
+  border-radius: 50%;
+  top: 40%;
+}
+.ma-arm--l { left: -8px; transform: rotate(20deg); }
+.ma-arm--r { right: -8px; transform: rotate(-20deg); }
+
+/* ── Stage 1: UFO ── */
+.mini-alien--s1 .ma-ant,
+.mini-alien--s1 .ma-head,
+.mini-alien--s1 .ma-mouth,
+.mini-alien--s1 .ma-eye { display: none; }
+
+.mini-alien--s1 .ma-body {
+  width: 56px;
+  height: 18px;
+  background: linear-gradient(180deg, #b0b4c8 0%, #707488 50%, #5c607a 100%);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 14px rgba(100,200,255,0.2);
+  margin-top: 0;
+}
+
+.mini-alien--s1 .ma-arm--l,
+.mini-alien--s1 .ma-arm--r { display: none; }
+
+.mini-alien--s1::before {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 18px;
+  background: radial-gradient(ellipse at 38% 32%, rgba(255,255,255,0.5) 0%, rgba(140,220,255,0.25) 55%, transparent 100%);
+  border: 1px solid rgba(140,220,255,0.4);
+  border-radius: 50% 50% 0 0;
+  margin-bottom: -3px;
+  box-shadow: 0 0 12px rgba(100,200,255,0.35);
+}
+
+/* ── Stage 2: green baby ── */
+.mini-alien--s2 .ma-ant   { background: linear-gradient(to top, #2e7a36, #5cbe67); }
+.mini-alien--s2 .ma-orb   { background: radial-gradient(circle at 35% 30%, #fff 0%, #aaff88 65%); box-shadow: 0 0 6px #aaff88; }
+.mini-alien--s2 .ma-head  { background: radial-gradient(ellipse at 32% 28%, #a8e6ad 0%, #5cbe67 50%, #2e7a36 100%); box-shadow: 0 4px 14px rgba(0,0,0,0.3), 0 0 18px rgba(92,190,103,0.4); }
+.mini-alien--s2 .ma-pupil { background: radial-gradient(circle at 38% 30%, rgba(255,255,255,0.3) 0%, #1a4a20 55%); }
+.mini-alien--s2 .ma-body  { background: radial-gradient(ellipse at 32% 30%, #5cbe67 0%, #2e7a36 100%); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.mini-alien--s2 .ma-arm   { background: #5cbe67; }
+
+/* ── Stage 3: blue wanderer ── */
+.mini-alien--s3 .ma-ant   { background: linear-gradient(to top, #1355a0, #3a9ee8); }
+.mini-alien--s3 .ma-orb   { background: radial-gradient(circle at 35% 30%, #fff 0%, #66d4ff 65%); box-shadow: 0 0 6px #66d4ff; }
+.mini-alien--s3 .ma-head  { background: radial-gradient(ellipse at 32% 28%, #90caf9 0%, #3a9ee8 50%, #1355a0 100%); box-shadow: 0 4px 14px rgba(0,0,0,0.3), 0 0 18px rgba(58,158,232,0.4); }
+.mini-alien--s3 .ma-pupil { background: radial-gradient(circle at 38% 30%, rgba(255,255,255,0.3) 0%, #0a2d5a 55%); }
+.mini-alien--s3 .ma-body  { background: radial-gradient(ellipse at 32% 30%, #3a9ee8 0%, #1355a0 100%); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.mini-alien--s3 .ma-arm   { background: #3a9ee8; }
+
+/* ── Stage 4: purple mage ── */
+.mini-alien--s4 .ma-ant   { background: linear-gradient(to top, #6a1a8a, #b44fd4); }
+.mini-alien--s4 .ma-orb   { background: radial-gradient(circle at 35% 30%, #fff 0%, #dd99ff 65%); box-shadow: 0 0 6px #dd99ff; }
+.mini-alien--s4 .ma-head  { background: radial-gradient(ellipse at 32% 28%, #e0b0f0 0%, #b44fd4 50%, #6a1a8a 100%); box-shadow: 0 4px 14px rgba(0,0,0,0.3), 0 0 18px rgba(180,79,212,0.4); }
+.mini-alien--s4 .ma-pupil { background: radial-gradient(circle at 38% 30%, rgba(255,255,255,0.3) 0%, #3d0a5a 55%); }
+.mini-alien--s4 .ma-body  { background: radial-gradient(ellipse at 32% 30%, #b44fd4 0%, #6a1a8a 100%); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.mini-alien--s4 .ma-arm   { background: #b44fd4; }
+
+/* ── Stage 5: gold lord ── */
+.mini-alien--s5 .ma-ant   { background: linear-gradient(to top, #b06000, #f0c030); }
+.mini-alien--s5 .ma-orb   { background: radial-gradient(circle at 35% 30%, #fff 0%, #fff0a0 65%); box-shadow: 0 0 8px #f0c030; }
+.mini-alien--s5 .ma-head  { background: radial-gradient(ellipse at 32% 28%, #fff0a0 0%, #f0c030 50%, #b06000 100%); box-shadow: 0 4px 14px rgba(0,0,0,0.3), 0 0 20px rgba(240,192,48,0.5); }
+.mini-alien--s5 .ma-pupil { background: radial-gradient(circle at 38% 30%, rgba(255,255,255,0.3) 0%, #5a2800 55%); }
+.mini-alien--s5 .ma-body  { background: radial-gradient(ellipse at 32% 30%, #f0c030 0%, #b06000 100%); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.mini-alien--s5 .ma-arm   { background: #f0c030; }

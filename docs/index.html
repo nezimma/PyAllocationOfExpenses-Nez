@@ -33,6 +33,10 @@
   </div>
   <!-- NAV TABS -->
   <nav class="nav-tabs">
+    <button class="nav-tab" data-page="pet">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="11" rx="7" ry="6"/><circle cx="9.5" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.5" cy="10" r="1.2" fill="currentColor" stroke="none"/><path d="M4 20 Q12 15 20 20" stroke-linecap="round"/></svg>
+      Питомец
+    </button>
     <button class="nav-tab active" data-page="expenses">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
       Расходы
@@ -40,10 +44,6 @@
     <button class="nav-tab" data-page="reminders">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       Напоминания
-    </button>
-    <button class="nav-tab" data-page="challenges">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-      Вызовы
     </button>
   </nav>
 </header>
@@ -263,13 +263,46 @@
   <ul class="rem-list" id="remindersList"></ul>
 </div>
 
-<!-- ────── CHALLENGES PAGE ────── -->
-<div id="challengesPage" class="page hidden">
+<!-- ────── PET PAGE ────── -->
+<div id="petPage" class="page hidden">
 
-  <!-- Active challenges + past -->
+  <!-- Pet card -->
+  <div class="pet-card" id="petCard">
+    <div class="pet-card__alien-wrap">
+      <!-- Mini alien CSS art — class set by JS -->
+      <div class="mini-alien mini-alien--s1" id="miniAlien">
+        <div class="ma-ant"><div class="ma-orb"></div></div>
+        <div class="ma-head">
+          <div class="ma-eye ma-eye--l"><div class="ma-pupil"></div></div>
+          <div class="ma-eye ma-eye--r"><div class="ma-pupil"></div></div>
+          <div class="ma-mouth"></div>
+        </div>
+        <div class="ma-body">
+          <div class="ma-arm ma-arm--l"></div>
+          <div class="ma-arm ma-arm--r"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pet-card__info">
+      <div class="pet-card__level" id="petLevel">Уровень 1</div>
+      <div class="pet-card__stage" id="petStageName">Малыш</div>
+      <div class="pet-card__xp-track"><div class="pet-card__xp-fill" id="petXpFill"></div></div>
+      <div class="pet-card__xp-label" id="petXpLabel">0 / 100 XP</div>
+      <div class="pet-card__bottom">
+        <span class="pet-card__streak" id="petStreak">🔥 0 дн.</span>
+        <div class="pet-card__week" id="petWeekDots">
+          <div class="pw-dot"></div><div class="pw-dot"></div>
+          <div class="pw-dot"></div><div class="pw-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Challenges -->
+  <div class="challenges-section-title" style="margin-top:8px">⚡ Вызовы</div>
   <div class="challenges-list" id="challengesList"></div>
 
-  <!-- Achievements section -->
+  <!-- Achievements -->
   <div class="challenges-achievements">
     <div class="challenges-section-title challenges-section-title--ach">🏆 Достижения</div>
     <div class="achievements-grid" id="achievementsList"></div>

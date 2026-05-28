@@ -169,5 +169,103 @@ function renderAchievements() {
   }).join('');
 }
 
+// ── Pet API ──
+
+async function apiGetPet(telegramId) {
+  const r = await fetch(`${API_BASE}/api/pet/${telegramId}`, { headers: _hdrs });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── Stage meta ──
+
+const PET_STAGE_NAMES = ['', 'НЛО', 'Малыш', 'Странник', 'Маг', 'Лорд'];
+
+function xpForLevel(n) { return 50 * n * (n - 1); }
+
+// ── Load pet page (pet card + challenges + achievements) ──
+
+async function loadPetPage() {
+  const telegramId = getTelegramId();
+
+  // Load pet data
+  let petData = null;
+  if (telegramId) {
+    try { petData = await apiGetPet(telegramId); }
+    catch (e) { console.warn('Pet API unavailable:', e); }
+  }
+  renderPetCard(petData);
+
+  // Load challenges & achievements (reuse existing arrays if already fetched)
+  if (telegramId) {
+    try { CHALLENGES = await apiGetChallenges(telegramId); }
+    catch (e) { console.warn('Challenges API unavailable:', e); CHALLENGES = []; }
+    try {
+      const ach = await apiGetAchievements(telegramId);
+      ALL_ACHIEVEMENTS = ach.all || [];
+      USER_ACHIEVEMENTS = ach.earned || [];
+    } catch (e) {
+      console.warn('Achievements API unavailable:', e);
+      ALL_ACHIEVEMENTS = [];
+      USER_ACHIEVEMENTS = [];
+    }
+  }
+  renderActiveChallenges();
+  renderAchievements();
+}
+
+// ── Render pet card ──
+
+function renderPetCard(data) {
+  const alien   = document.getElementById('miniAlien');
+  const lvlEl   = document.getElementById('petLevel');
+  const stageEl = document.getElementById('petStageName');
+  const xpFill  = document.getElementById('petXpFill');
+  const xpLbl   = document.getElementById('petXpLabel');
+  const streakEl = document.getElementById('petStreak');
+  const weekEl  = document.getElementById('petWeekDots');
+
+  if (!alien) return;
+
+  if (!data) {
+    // Defaults — new user
+    data = { level: 1, xp: 0, stage: 1, day_streak: 0, entries_this_week: 0 };
+  }
+
+  const stage   = data.stage  || 1;
+  const level   = data.level  || 1;
+  const xp      = data.xp     || 0;
+  const streak  = data.day_streak || 0;
+  const entries = data.entries_this_week || 0;
+
+  // Set stage class
+  alien.className = `mini-alien mini-alien--s${stage}`;
+
+  // Level & stage name
+  if (lvlEl)   lvlEl.textContent   = `Уровень ${level}`;
+  if (stageEl) stageEl.textContent = PET_STAGE_NAMES[stage] || '';
+
+  // XP bar
+  const xpCur  = xpForLevel(level);
+  const xpNext = xpForLevel(level + 1);
+  const pct    = xpNext > xpCur ? Math.min(100, Math.round((xp - xpCur) / (xpNext - xpCur) * 100)) : 100;
+  if (xpFill)  xpFill.style.width  = pct + '%';
+  if (xpLbl)   xpLbl.textContent   = `${xp} / ${xpNext} XP`;
+
+  // Streak
+  if (streakEl) {
+    const flame = streak >= 7 ? '🔥' : streak >= 3 ? '✨' : '💫';
+    streakEl.textContent = `${flame} ${streak} дн.`;
+  }
+
+  // Week dots (4 dots, filled = min(entries, 4))
+  if (weekEl) {
+    const dots = weekEl.querySelectorAll('.pw-dot');
+    dots.forEach((d, i) => {
+      d.classList.toggle('pw-dot--filled', i < entries);
+    });
+  }
+}
+
 // ── Page navigation (патчим обработчик из reminders.js) ──
-// Вызывается из обновлённого reminders.js при переключении на вкладку 'challenges'
+// Вызывается из обновлённого reminders.js при переключении на вкладку 'pet'
