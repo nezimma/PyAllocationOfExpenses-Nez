@@ -398,6 +398,27 @@ async def handle_get_achievements(request: web.Request) -> web.Response:
         return _cors(web.Response(status=500, text="DB error"))
 
 
+# ── Pet / Tamagotchi ─────────────────────────────────────────────────────────
+
+async def handle_get_pet(request: web.Request) -> web.Response:
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except ValueError:
+        return _cors(web.Response(status=400, text="Invalid telegram_id"))
+    try:
+        from services import pet_service
+        data = await pet_service.get_pet_data(telegram_id)
+        if data is None:
+            return _cors(web.Response(status=404, text="User not found"))
+        return _cors(web.Response(
+            content_type="application/json",
+            text=json.dumps(data, ensure_ascii=False, default=str),
+        ))
+    except Exception as e:
+        logger.error(f"handle_get_pet error: {e}")
+        return _cors(web.Response(status=500, text="error"))
+
+
 # ── App factory ───────────────────────────────────────────────────────────────
 
 def create_app() -> web.Application:
@@ -442,5 +463,8 @@ def create_app() -> web.Application:
 
     app.router.add_route("OPTIONS", "/api/achievements/{telegram_id}", handle_options)
     app.router.add_get("/api/achievements/{telegram_id}", handle_get_achievements)
+
+    app.router.add_route("OPTIONS", "/api/pet/{telegram_id}", handle_options)
+    app.router.add_get("/api/pet/{telegram_id}", handle_get_pet)
 
     return app

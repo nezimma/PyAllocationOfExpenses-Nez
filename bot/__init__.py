@@ -3,7 +3,7 @@ import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from config import config
-from bot.routers import auth, expenses, reminders, challenges
+from bot.routers import auth, expenses, reminders, challenges, pet
 from api.server import create_app
 from services.notification_scheduler import run_scheduler
 from database.db import create_pool
@@ -21,6 +21,7 @@ def create_bot() -> tuple[Bot, Dispatcher]:
     dp.include_router(expenses.router)
     dp.include_router(reminders.router)
     dp.include_router(challenges.router)
+    dp.include_router(pet.router)
     return bot, dp
 
 

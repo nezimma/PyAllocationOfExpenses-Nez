@@ -75,6 +75,13 @@ async def accept_challenge(
     except Exception:
         pass
 
+    # XP питомцу за принятый вызов
+    try:
+        from services import pet_service
+        await pet_service.on_challenge_accepted(telegram_id)
+    except Exception:
+        logger.exception("pet xp on challenge accept failed")
+
     challenge_id = await database.challenges.create_challenge(
         telegram_id=telegram_id,
         category_key=category_key,
@@ -299,6 +306,14 @@ async def _finalize_one(row: dict, bot: Bot) -> None:
 
     await bot.send_message(telegram_id, text, parse_mode="HTML")
 
+    # XP питомцу за результат вызова
+    if success:
+        try:
+            from services import pet_service
+            await pet_service.on_challenge_completed(telegram_id)
+        except Exception:
+            logger.exception("pet xp on challenge complete failed")
+
     # Достижения
     try:
         user_id = await database.challenges.get_user_id_by_telegram(telegram_id)
@@ -352,3 +367,10 @@ async def _check_and_award(
             parse_mode="HTML",
         )
         logger.info(f"Achievements for {telegram_id}: {[n for _, n in earned]}")
+        # XP питомцу за каждое новое достижение
+        try:
+            from services import pet_service
+            for _ in earned:
+                await pet_service.on_achievement_earned(telegram_id)
+        except Exception:
+            logger.exception("pet xp on achievement failed")

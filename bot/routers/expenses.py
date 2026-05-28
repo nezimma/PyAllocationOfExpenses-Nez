@@ -133,6 +133,7 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
             cat_key_found = next((k for k, v in CATEGORY_LABELS.items() if v == category), None)
             if cat_key_found:
                 asyncio.create_task(_try_propose_challenge(message.from_user.id, cat_key_found, bot))
+            asyncio.create_task(_award_pet_xp(message.from_user.id))
         else:
             await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
             missing_count = sum(1 for _, _, amt, _ in items if amt is None)
@@ -141,6 +142,7 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
                 for cat, desc, amt, cur in items
             )
             await message.answer(f"🎤 Записано {len(items)} покупок:\n{lines}")
+            asyncio.create_task(_award_pet_xp(message.from_user.id))
             if missing_count:
                 await message.answer(
                     f"⚠️ Для {missing_count} покупок не найдена сумма. "
@@ -502,6 +504,15 @@ async def _try_propose_challenge(telegram_id: int, category_key: str, bot: Bot) 
         await challenge_service.maybe_propose(telegram_id, category_key, bot)
     except Exception:
         logger.exception(f"_try_propose_challenge failed for {telegram_id}/{category_key}")
+
+
+async def _award_pet_xp(telegram_id: int) -> None:
+    """Фоновая задача — начисляет XP питомцу за запись расхода."""
+    try:
+        from services import pet_service
+        await pet_service.on_expense_saved(telegram_id)
+    except Exception:
+        logger.exception(f"pet xp failed for {telegram_id}")
 
 
 async def _predict_async(text: str) -> str:
