@@ -29,13 +29,19 @@ def _period_for_current_month() -> tuple[date, date]:
 
 
 def _next_notify_at(days_left: int) -> datetime:
-    """Следующий момент проверки в зависимости от оставшихся дней."""
-    base = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+    """Следующий момент проверки в зависимости от оставшихся дней.
+    Всегда возвращает момент В БУДУЩЕМ.
+    """
+    now = datetime.now()
+    base = now.replace(hour=10, minute=0, second=0, microsecond=0)
     if days_left <= 3:
-        return base + timedelta(hours=12)
+        # Через 12 часов от текущего момента (не от 10:00)
+        return now + timedelta(hours=12)
     if days_left <= 7:
-        return base + timedelta(days=1)
-    return base + timedelta(days=3)
+        candidate = base + timedelta(days=1)
+        return candidate if candidate > now else candidate + timedelta(days=1)
+    candidate = base + timedelta(days=3)
+    return candidate if candidate > now else candidate + timedelta(days=1)
 
 
 def _progress_bar(pct: int) -> str:

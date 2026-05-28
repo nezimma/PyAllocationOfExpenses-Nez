@@ -52,32 +52,34 @@ async def photo_hint(message: types.Message):
 @router.message(BotState.sell_state, F.voice)
 async def process_voice_from_state(message: types.Message, state: FSMContext, bot: Bot):
     """Голосовое из явного FSM-состояния (через кнопку «Создать запись»)."""
-    await _handle_voice(message, bot, state)
-    # state.clear() вызывается внутри, если не переходим в waiting_for_amount
+    asyncio.create_task(_handle_voice(message, bot, state))
 
 
 @router.message(F.voice)
 async def process_voice_any(message: types.Message, state: FSMContext, bot: Bot):
     """Голосовое в любой момент — автоматически пишется как трата."""
-    await _handle_voice(message, bot, state)
+    asyncio.create_task(_handle_voice(message, bot, state))
 
 
 # ─── Общая логика обработки голосового ──────────────────────────────────────
 
 async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
+    await bot.send_chat_action(message.chat.id, "typing")
+
     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
         ogg_path = tmp.name
     wav_path = ogg_path.replace(".ogg", ".wav")
 
-    file_info = await bot.get_file(message.voice.file_id)
-    for _attempt in range(3):
+    # Скачиваем файл; при таймауте — одна тихая повторная попытка
+    for _attempt in range(2):
         try:
+            file_info = await bot.get_file(message.voice.file_id)
             await bot.download_file(file_info.file_path, destination=ogg_path)
             break
         except (TimeoutError, asyncio.TimeoutError, OSError) as e:
             logger.warning(f"download_file attempt {_attempt + 1} failed: {e}")
-            if _attempt == 2:
-                await message.answer("❌ Не удалось скачать голосовое. Попробуйте ещё раз.")
+            if _attempt == 1:
+                await message.answer("❌ Не удалось скачать голосовое — проблема с сетью. Попробуйте ещё раз.")
                 for path in (ogg_path, wav_path):
                     if os.path.exists(path):
                         try:
@@ -85,9 +87,8 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
                         except OSError:
                             pass
                 return
-            # Перезапрашиваем file_info — ссылка могла протухнуть
-            await asyncio.sleep(1.5)
-            file_info = await bot.get_file(message.voice.file_id)
+            # первая попытка упала — ждём секунду и пробуем снова незаметно
+            await asyncio.sleep(1)
 
     backup_task = asyncio.create_task(_backup_async(ogg_path, message.from_user.id))
     recognized = await _recognize_async(ogg_path, wav_path)
@@ -127,21 +128,11 @@ async def _handle_voice(message: types.Message, bot: Bot, state: FSMContext):
                 return
             await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
             await message.answer(f"🎤 Покупка записана в «{category}»: {amount:.2f} {cur_symbol(currency)}")
-            # Асинхронно предлагаем вызов (не блокируем ответ)
-            from database.expense_repository import _CATEGORY_TO_KEY
-            cat_key = {v: k for k, v in _CATEGORY_TO_KEY.items()}.get(category) or ""
-            # cat_key уже IS the value in _CATEGORY_TO_KEY, category IS the label
-            # Нам нужен ключ (restaurants, transport...) — он хранится как category в items
-            # На самом деле items содержит (category_name, desc, amount, cur)
-            # category здесь = имя из ML ("Рестораны и еда"), нужен ключ
+            # Асинхронно предлагаем вызов — category это label ("Рестораны и еда"), ищем ключ
             from services.challenge_analysis_service import CATEGORY_LABELS
-            cat_key_found = next(
-                (k for k, v in CATEGORY_LABELS.items() if v == category), None
-            )
+            cat_key_found = next((k for k, v in CATEGORY_LABELS.items() if v == category), None)
             if cat_key_found:
-                asyncio.create_task(
-                    _try_propose_challenge(message.from_user.id, cat_key_found, message.bot)
-                )
+                asyncio.create_task(_try_propose_challenge(message.from_user.id, cat_key_found, bot))
         else:
             await database.expenses.save_expense_items(message.from_user.id, items, file_info.file_path)
             missing_count = sum(1 for _, _, amt, _ in items if amt is None)
