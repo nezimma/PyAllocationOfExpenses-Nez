@@ -34,6 +34,7 @@ document.getElementById('currencySwitcher').addEventListener('click', e => {
   document.querySelectorAll('.currency-btn').forEach(b => b.classList.toggle('active', b === btn));
   const sym = CURRENCY_SYMBOLS[state.currency] || state.currency;
   document.getElementById('totalCurrencySymbol').textContent = sym;
+  updateAmountPreview(); // пересчитываем preview если модалка открыта
   render();
 });
 
@@ -325,6 +326,7 @@ function openModal(id) {
   document.getElementById('editCategory').value = expense.cat;
   document.getElementById('editDate').value     = expense.date;
 
+  updateAmountPreview();
   modalOverlay.classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -523,6 +525,28 @@ function renderForecast() {
 
   card.style.display = 'block';
 }
+
+// ── Amount preview in modal ──
+function updateAmountPreview() {
+  const preview = document.getElementById('editAmountPreview');
+  if (!preview) return;
+
+  const amount = parseFloat(document.getElementById('editAmount')?.value);
+  const fromCur = document.getElementById('editCurrency')?.value;
+  const toCur = state.currency;
+
+  if (!amount || !fromCur || fromCur === toCur || !Object.keys(RATES).length) {
+    preview.textContent = '';
+    return;
+  }
+
+  const converted = convertAmount(amount, fromCur, toCur);
+  const sym = CURRENCY_SYMBOLS[toCur] || toCur;
+  preview.textContent = `≈ ${converted.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${sym}`;
+}
+
+document.getElementById('editAmount')?.addEventListener('input', updateAmountPreview);
+document.getElementById('editCurrency')?.addEventListener('change', updateAmountPreview);
 
 // ── Helpers ──
 function pluralize(n, one, few, many) {

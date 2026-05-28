@@ -25,9 +25,6 @@ let RATES = {};
 const CURRENCY_SYMBOLS = { BYN: 'Br', USD: '$', EUR: '€', RUB: '₽', PLN: 'zł', GBP: '£', CNY: '¥', UAH: '₴' };
 
 async function loadRates() {
-  const tg = window.Telegram?.WebApp;
-  const userId = tg?.initDataUnsafe?.user?.id;
-  if (!userId) return; // вне Telegram — конвертация недоступна
   try {
     const resp = await fetch(`${API_BASE}/api/rates`, {
       headers: { 'ngrok-skip-browser-warning': 'true' },

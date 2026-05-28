@@ -975,6 +975,12 @@ ul { list-style: none; }
   flex-shrink: 0;
   cursor: pointer;
 }
+.amount-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-height: 16px;
+  margin-top: 4px;
+}
 
 /* Buttons */
 .btn {
