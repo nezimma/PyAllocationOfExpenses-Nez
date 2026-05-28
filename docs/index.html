@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/pet-widget.css" />
 </head>
 <body>
 
@@ -266,35 +267,107 @@
 <!-- ────── PET PAGE ────── -->
 <div id="petPage" class="page hidden">
 
-  <!-- Pet card -->
-  <div class="pet-card" id="petCard">
-    <div class="pet-card__alien-wrap">
-      <!-- Mini alien CSS art — class set by JS -->
-      <div class="mini-alien mini-alien--s1" id="miniAlien">
-        <div class="ma-ant"><div class="ma-orb"></div></div>
-        <div class="ma-head">
-          <div class="ma-eye ma-eye--l"><div class="ma-pupil"></div></div>
-          <div class="ma-eye ma-eye--r"><div class="ma-pupil"></div></div>
-          <div class="ma-mouth"></div>
+  <!-- ── Animated scene card ── -->
+  <div class="pet-scene-card" id="petSceneCard">
+    <canvas class="psc-canvas" id="petSceneCanvas"></canvas>
+    <div class="psc-nebula" id="petSceneNebula"></div>
+    <div class="psc-planet" id="petScenePlanet"></div>
+
+    <!-- Alien centred + scaled to 65% via CSS transform -->
+    <div class="psc-center">
+      <div class="pw-alien-wrap" id="petMiniWrap">
+
+        <!-- Orbit sparkles -->
+        <div class="pw-orbit-dot" style="--od-r:88px;--od-speed:5.5s;--od-delay:0s;--od-size:7px"></div>
+        <div class="pw-orbit-dot" style="--od-r:108px;--od-speed:8s;--od-delay:-2.8s;--od-size:5px"></div>
+        <div class="pw-orbit-dot" style="--od-r:96px;--od-speed:11s;--od-delay:-5s;--od-size:6px"></div>
+
+        <!-- UFO (stage 1) -->
+        <div class="pw-ufo" id="petMiniUfo">
+          <div class="pw-ufo__dome"></div>
+          <div class="pw-ufo__disc">
+            <div class="pw-ufo__lights">
+              <div class="pw-ufo__light"></div>
+              <div class="pw-ufo__light"></div>
+              <div class="pw-ufo__light"></div>
+              <div class="pw-ufo__light"></div>
+              <div class="pw-ufo__light"></div>
+            </div>
+          </div>
+          <div class="pw-ufo__beam"></div>
         </div>
-        <div class="ma-body">
-          <div class="ma-arm ma-arm--l"></div>
-          <div class="ma-arm ma-arm--r"></div>
+
+        <!-- Alien (stages 2-5) -->
+        <div class="pw-char" id="petMiniChar">
+          <div class="pw-char__glow"></div>
+          <div class="pw-char__ant"><div class="pw-char__orb"></div></div>
+          <div class="pw-char__head">
+            <div class="pw-char__eye pw-char__eye--l">
+              <div class="pw-char__iris"></div>
+              <div class="pw-char__pupil">
+                <div class="pw-char__shine pw-char__shine--1"></div>
+                <div class="pw-char__shine pw-char__shine--2"></div>
+              </div>
+            </div>
+            <div class="pw-char__eye pw-char__eye--r">
+              <div class="pw-char__iris"></div>
+              <div class="pw-char__pupil">
+                <div class="pw-char__shine pw-char__shine--1"></div>
+                <div class="pw-char__shine pw-char__shine--2"></div>
+              </div>
+            </div>
+            <div class="pw-char__cheek pw-char__cheek--l"></div>
+            <div class="pw-char__cheek pw-char__cheek--r"></div>
+            <div class="pw-char__mouth"></div>
+          </div>
+          <div class="pw-char__body">
+            <div class="pw-char__arm pw-char__arm--l"></div>
+            <div class="pw-char__arm pw-char__arm--r"></div>
+            <div class="pw-char__belly"></div>
+          </div>
+          <div class="pw-char__feet">
+            <div class="pw-char__foot"></div>
+            <div class="pw-char__foot"></div>
+          </div>
+          <div class="pw-char__crown">👑</div>
         </div>
+
+        <!-- ZZZ -->
+        <div class="pw-zzz-wrap" id="petMiniZzz">
+          <span class="pw-zzz">z</span>
+          <span class="pw-zzz">z</span>
+          <span class="pw-zzz">Z</span>
+        </div>
+
+        <!-- Mood emoji -->
+        <div class="pw-mood" id="petMiniMood"></div>
+
+        <!-- Particles -->
+        <div class="pw-particles" id="petMiniParticles"></div>
       </div>
     </div>
-    <div class="pet-card__info">
-      <div class="pet-card__level" id="petLevel">Уровень 1</div>
-      <div class="pet-card__stage" id="petStageName">Малыш</div>
-      <div class="pet-card__xp-track"><div class="pet-card__xp-fill" id="petXpFill"></div></div>
-      <div class="pet-card__xp-label" id="petXpLabel">0 / 100 XP</div>
-      <div class="pet-card__bottom">
-        <span class="pet-card__streak" id="petStreak">🔥 0 дн.</span>
-        <div class="pet-card__week" id="petWeekDots">
-          <div class="pw-dot"></div><div class="pw-dot"></div>
-          <div class="pw-dot"></div><div class="pw-dot"></div>
-        </div>
+
+    <!-- Bottom overlay -->
+    <div class="psc-name" id="petSceneName">NEBULA-1</div>
+    <div class="psc-overlay">
+      <span class="psc-level" id="petSceneLevel">Уровень 1</span>
+      <span class="psc-streak" id="petSceneStreak">0 дн. ✨</span>
+    </div>
+  </div>
+
+  <!-- XP + week dots info bar -->
+  <div class="pet-info-bar">
+    <div class="pet-info-bar__xp">
+      <div class="pet-info-bar__xp-track">
+        <div class="pet-info-bar__xp-fill" id="petInfoXpFill"></div>
       </div>
+      <div class="pet-info-bar__xp-label" id="petInfoXpLabel">0 / 100 XP</div>
+    </div>
+    <div class="pet-info-bar__week" id="petInfoWeekDots">
+      <div class="pet-info-bar__week-dot"></div>
+      <div class="pet-info-bar__week-dot"></div>
+      <div class="pet-info-bar__week-dot"></div>
+      <div class="pet-info-bar__week-dot"></div>
     </div>
   </div>
 
