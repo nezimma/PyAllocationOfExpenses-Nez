@@ -105,8 +105,24 @@ async function loadRecurring(userId) {
   }
 }
 
-// Прогноз — заполняется из API или строится из локальных данных
-let FORECAST = null;
+// TODO: убрать после защиты — статичный демо-прогноз
+let FORECAST = {
+  enough_data:    true,
+  total_spent:    1547.50,
+  forecast_total: 2890,
+  daily_avg:      61.40,
+  days_elapsed:   10,
+  days_in_month:  30,
+  method:         "regression",
+  r2:             0.88,
+  by_category: {
+    "Жилье":           900,
+    "Рестораны и еда": 680,
+    "Транспорт":        420,
+    "Быт":             310,
+    "Здоровье":        180,
+  },
+};
 
 async function loadForecast(userId) {
   try {
