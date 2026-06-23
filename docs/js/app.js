@@ -222,9 +222,33 @@ function getFiltered() {
 function updateDelta() {
   const period = getActivePeriod();
   const offset = state.periodOffset;
+  const now = new Date();
 
-  const { start: s1, end: e1 } = getPeriodRange(period, offset);
-  const { start: s2, end: e2 } = getPeriodRange(period, offset - 1);
+  let s1, e1, s2, e2;
+
+  if (period === 'month' && offset === 0) {
+    // Текущий месяц: 1-е по сегодня
+    s1 = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    e1 = new Date(now); e1.setHours(23, 59, 59, 999);
+    // Прошлый месяц: 1-е по то же число (или последний день если месяц короче)
+    const prevMonth = now.getMonth() - 1;
+    const lastDayPrev = new Date(now.getFullYear(), prevMonth + 1, 0).getDate();
+    const sameDay = Math.min(now.getDate(), lastDayPrev);
+    s2 = new Date(now.getFullYear(), prevMonth, 1, 0, 0, 0, 0);
+    e2 = new Date(now.getFullYear(), prevMonth, sameDay, 23, 59, 59, 999);
+  } else if (period === 'week' && offset === 0) {
+    // Текущая неделя: пн по сегодня
+    const dow = now.getDay();
+    const daysToMonday = dow === 0 ? -6 : 1 - dow;
+    s1 = new Date(now); s1.setDate(now.getDate() + daysToMonday); s1.setHours(0, 0, 0, 0);
+    e1 = new Date(now); e1.setHours(23, 59, 59, 999);
+    // Прошлая неделя: пн по тот же день недели
+    s2 = new Date(s1); s2.setDate(s1.getDate() - 7);
+    e2 = new Date(e1); e2.setDate(e1.getDate() - 7);
+  } else {
+    ({ start: s1, end: e1 } = getPeriodRange(period, offset));
+    ({ start: s2, end: e2 } = getPeriodRange(period, offset - 1));
+  }
 
   const sumPeriod = (s, e) =>
     EXPENSES.filter(exp => { const d = new Date(exp.date); return d >= s && d <= e; })
@@ -236,15 +260,19 @@ function updateDelta() {
   const deltaEl = document.querySelector('.total-card__delta');
 
   if (previous === 0) {
-    deltaEl.innerHTML = `<span class="delta" style="opacity:.6">— нет данных за прошлый период</span>`;
+    deltaEl.innerHTML = `<span class="delta" style="opacity:.6">— нет данных за тот же период прошлого месяца</span>`;
     return;
   }
 
   const pct = Math.round((current - previous) / previous * 100);
-  const up  = pct >= 0;
+  const saved = pct <= 0;
+  const label = saved
+    ? `сэкономил ${Math.abs(pct)}% по сравнению с тем же периодом прошлого месяца`
+    : `потратил на ${pct}% больше, чем за тот же период прошлого месяца`;
+
   deltaEl.innerHTML = `
-    <span class="delta delta--${up ? 'up' : 'down'}">${up ? '↑' : '↓'} ${Math.abs(pct)}%</span>
-    по сравнению с прошлым периодом
+    <span class="delta delta--${saved ? 'down' : 'up'}">${saved ? '↓' : '↑'} ${Math.abs(pct)}%</span>
+    ${label}
   `;
 }
 
@@ -324,7 +352,7 @@ function openModal(id) {
   document.getElementById('editAmount').value   = expense.amount;
   document.getElementById('editCurrency').value = expense.currency || 'BYN';
   document.getElementById('editCategory').value = expense.cat;
-  document.getElementById('editDate').value     = expense.date;
+  document.getElementById('editDate').value     = expense.date ? expense.date.slice(0, 16) : '';
 
   updateAmountPreview();
   modalOverlay.classList.add('open');
@@ -558,6 +586,6 @@ function pluralize(n, one, few, many) {
 
 // ── Init ──
 (async () => {
-  await loadExpenses();
+  await Promise.all([loadExpenses(), loadRates()]);
   render();
 })();
