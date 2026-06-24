@@ -7,7 +7,7 @@ aiosignal==1.4.0
 annotated-types==0.7.0
 async-generator==1.10
 attrs==25.4.0
-audioop-lts==0.2.2
+# audioop-lts — только для Python 3.13+, на 3.11 audioop встроен
 brotli==1.2.0
 certifi==2026.1.4
 cffi==2.0.0
@@ -54,8 +54,7 @@ faster-whisper
 pytesseract
 Pillow
 reportlab
-standard-aifc==3.13.0
-standard-chunk==3.13.0
+# standard-aifc и standard-chunk — только для Python 3.13+, на 3.11 встроены
 trio==0.32.0
 trio-typing==0.10.0
 trio-websocket==0.12.2
