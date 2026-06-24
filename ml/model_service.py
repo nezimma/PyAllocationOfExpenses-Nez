@@ -6,9 +6,8 @@ import logging
 import math
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from tensorflow.keras import layers, losses
-from sentence_transformers import SentenceTransformer
+# tensorflow и sentence_transformers импортируются лениво внутри методов —
+# чтобы не грузить ~500MB RAM при старте если модель не нужна
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +249,9 @@ class ExpenseModelService:
             logger.warning(f"Model file missing: {model_path}")
             return False
 
+        import tensorflow as tf
+        from sentence_transformers import SentenceTransformer
+
         self._model = tf.keras.models.load_model(model_path)
 
         # SentenceTransformer грузится из кеша (после первой загрузки — оффлайн)
@@ -276,6 +278,7 @@ class ExpenseModelService:
 
         # Загружаем SentenceTransformer один раз — используется и при обучении, и при инференсе
         if self._encoder is None:
+            from sentence_transformers import SentenceTransformer
             logger.info(f"Загружаем SentenceTransformer: {SENTENCE_TRANSFORMER_MODEL}")
             self._encoder = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
 
@@ -421,6 +424,8 @@ class ExpenseModelService:
         Простой Dense-классификатор поверх готовых эмбеддингов (384-мерный вход).
         SentenceTransformer здесь не входит в граф — он используется отдельно для encode().
         """
+        import tensorflow as tf
+        from tensorflow.keras import layers, losses
         model = tf.keras.Sequential([
             layers.Input(shape=(EMBEDDING_DIM,)),
             layers.Dense(64, activation="relu"),
@@ -438,6 +443,7 @@ class ExpenseModelService:
         return model
 
     def _train(self, model, X_train, y_train, X_val, y_val):
+        import tensorflow as tf
         early_stop = tf.keras.callbacks.EarlyStopping(
             monitor="val_loss", patience=5, restore_best_weights=True
         )
