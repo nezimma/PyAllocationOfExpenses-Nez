@@ -1,6 +1,6 @@
 // ─── CONFIG ──────────────────────────────────
 // Замените на реальный адрес вашего сервера при деплое
-const API_BASE = 'https://mule-secluding-autism.ngrok-free.dev';
+const API_BASE = 'https://pyallocationofexpenses-nez.onrender.com';
 
 // ─── MOCK DATA ───────────────────────────────
 const CATEGORIES = {
